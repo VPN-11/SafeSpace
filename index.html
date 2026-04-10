@@ -19,7 +19,7 @@
           <div class="brand-lockup">
             <span class="brand-mark">C</span>
             <div>
-              <p class="eyebrow">AI-powered emotional support</p>
+              <p class="eyebrow">AI-powered emotion detection</p>
               <h1>SafeSpace.ai</h1>
             </div>
           </div>
@@ -30,7 +30,7 @@
           <div class="hero-copy">
             <p class="section-label">Detect. Understand. Support.</p>
             <h2>
-              Feel.Track.Heal
+              Feel. Track. Heal
             </h2>
             <p class="hero-text">
               This interface combines written emotion check-ins, webcam-based expression sensing,
@@ -108,38 +108,17 @@
             <button class="primary-button" id="analyzeButton" type="button">Analyze Well-Being</button>
           </div>
 
-          <div class="checkin-assistant" aria-live="polite">
-            <div class="assistant-header">
-              <span class="section-label">Live AI Draft Assistant</span>
-              <strong id="draftWordCount">0 words</strong>
+          <div class="emotion-spectrum-card">
+            <div class="emotion-spectrum-header">
+              <div>
+                <p class="section-label">AI-ML Emotion Tracker</p>
+                <h4>Emotion Spectrum Details</h4>
+              </div>
+              <span class="status-pill" id="emotionModelStatus">Text signal only</span>
             </div>
-
-            <div class="assistant-grid">
-              <article class="assistant-card">
-                <p>Emotional intensity</p>
-                <div
-                  class="mini-meter"
-                  role="progressbar"
-                  aria-valuemin="0"
-                  aria-valuemax="100"
-                  aria-valuenow="0"
-                  id="draftIntensityMeter"
-                >
-                  <div class="mini-meter-fill" id="draftIntensityFill"></div>
-                </div>
-                <strong id="draftIntensityText">Low signal</strong>
-              </article>
-
-              <article class="assistant-card">
-                <p>Detected themes</p>
-                <div class="theme-row" id="draftThemes">
-                  <span class="theme-pill">Waiting for input</span>
-                </div>
-              </article>
-            </div>
-
-            <p class="assistant-prompt" id="draftPrompt">
-              Tip: mention what triggered the emotion and how long you've felt this way for better AI support guidance.
+            <div class="emotion-spectrum-list" id="emotionSpectrumList"></div>
+            <p class="small-note" id="emotionSpectrumNote">
+              Shows probability and intensity for every modeled emotion in this prototype.
             </p>
           </div>
         </section>
@@ -174,6 +153,57 @@
               model such as face-api.js.
             </p>
           </div>
+
+          <div class="expression-ai-card">
+            <div class="expression-ai-header">
+              <div>
+                <p class="section-label">AI-ML Feature</p>
+                <h4>Expression Confidence Map</h4>
+              </div>
+              <span class="status-pill" id="confidenceSignalStatus">Awaiting capture</span>
+            </div>
+            <div class="expression-confidence-list" id="expressionConfidenceList"></div>
+            <div class="expression-reliability">
+              <span>Detection reliability</span>
+              <strong id="expressionReliabilityScore">0 / 100</strong>
+              <p id="expressionReliabilityNote">
+                Start camera and capture expression to evaluate confidence across all facial emotions.
+              </p>
+            </div>
+          </div>
+
+          <div class="quote-stack" aria-label="Motivational quotes">
+            <article class="quote-card">
+              <p class="quote-text">
+                "You may not control all the events that happen to you, but you can decide not to be reduced by them."
+              </p>
+              <p class="quote-author">Maya Angelou</p>
+            </article>
+            <article class="quote-card">
+              <p class="quote-text">
+                "When we are no longer able to change a situation, we are challenged to change ourselves."
+              </p>
+              <p class="quote-author">Viktor E. Frankl</p>
+            </article>
+            <article class="quote-card">
+              <p class="quote-text">
+                "There is hope, even when your brain tells you there isn't."
+              </p>
+              <p class="quote-author">John Green</p>
+            </article>
+            <article class="quote-card">
+              <p class="quote-text">
+                "It always seems impossible until it's done."
+              </p>
+              <p class="quote-author">Nelson Mandela</p>
+            </article>
+            <article class="quote-card">
+              <p class="quote-text">
+                "You must do the thing you think you cannot do."
+              </p>
+              <p class="quote-author">Eleanor Roosevelt</p>
+            </article>
+          </div>
         </section>
 
         <section class="panel dashboard-panel">
@@ -207,12 +237,12 @@
             <div class="mood-chart-header">
               <div>
                 <span class="section-label">Mood Tracking</span>
-                <h4>Sentiment trend from last 5 entries</h4>
+                <h4>Last 5 check-ins sentiment trend</h4>
               </div>
-              <span class="small-note">Live history from your own check-ins</span>
+              <span class="small-note">Live values from your latest entries</span>
             </div>
-            <div class="sentiment-chart" id="sentimentChart"></div>
-            <div class="sentiment-list" id="sentimentList"></div>
+            <div class="mood-bars" id="moodBars"></div>
+            <div class="mood-trend-meta" id="moodTrendMeta"></div>
           </div>
         </section>
 
@@ -231,7 +261,7 @@
           <div class="panel-header">
             <div>
               <p class="section-label">Step 5</p>
-              <h3>Support Response</h3>
+              <h3>Remember to breathe...</h3>
             </div>
           </div>
 
@@ -240,6 +270,20 @@
               Share a check-in above to receive a supportive response, risk summary, and calming next
               steps.
             </p>
+            <button class="primary-button" id="breathingExerciseButton" type="button">
+              Start Breathing Exercise
+            </button>
+            <div class="breathing-panel hidden" id="breathingPanel">
+              <p class="section-label">Calming Exercise</p>
+              <h4>Follow the circle</h4>
+              <div class="breathing-circle" id="breathingCircle">
+                <span id="breathingText">Breathe In</span>
+              </div>
+              <button class="ghost-button" id="closeBreathingButton" type="button">
+                Close Exercise
+              </button>
+            </div>
+            
           </div>
 
           <div class="disclaimer">
@@ -258,3 +302,4 @@
     <script src="./app.js"></script>
   </body>
 </html>
+
