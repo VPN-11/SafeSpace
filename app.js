@@ -8,6 +8,11 @@ const toggleCameraButton = document.getElementById("toggleCameraButton");
 const webcamVideo = document.getElementById("webcamVideo");
 const cameraStatus = document.getElementById("cameraStatus");
 const cameraMessage = document.getElementById("cameraMessage");
+const breathingExerciseButton = document.getElementById("breathingExerciseButton");
+const breathingPanel = document.getElementById("breathingPanel");
+const closeBreathingButton = document.getElementById("closeBreathingButton");
+const breathingText = document.getElementById("breathingText");
+
 
 const dominantEmotion = document.getElementById("dominantEmotion");
 const sentimentScore = document.getElementById("sentimentScore");
@@ -15,28 +20,30 @@ const stressIndex = document.getElementById("stressIndex");
 const supportMode = document.getElementById("supportMode");
 const recommendationGrid = document.getElementById("recommendationGrid");
 const supportResponse = document.getElementById("supportResponse");
-const sentimentChart = document.getElementById("sentimentChart");
-const sentimentList = document.getElementById("sentimentList");
+const moodBars = document.getElementById("moodBars");
+const moodTrendMeta = document.getElementById("moodTrendMeta");
 const expressionOutput = document.getElementById("expressionOutput");
 const expressionHint = document.getElementById("expressionHint");
+const expressionConfidenceList = document.getElementById("expressionConfidenceList");
+const confidenceSignalStatus = document.getElementById("confidenceSignalStatus");
+const expressionReliabilityScore = document.getElementById("expressionReliabilityScore");
+const expressionReliabilityNote = document.getElementById("expressionReliabilityNote");
+const emotionSpectrumList = document.getElementById("emotionSpectrumList");
+const emotionModelStatus = document.getElementById("emotionModelStatus");
+const emotionSpectrumNote = document.getElementById("emotionSpectrumNote");
 
 const heroMoodLabel = document.getElementById("heroMoodLabel");
 const heroStressScore = document.getElementById("heroStressScore");
 const heroSummary = document.getElementById("heroSummary");
 const metricSentiment = document.getElementById("metricSentiment");
 const metricRisk = document.getElementById("metricRisk");
-const draftWordCount = document.getElementById("draftWordCount");
-const draftIntensityFill = document.getElementById("draftIntensityFill");
-const draftIntensityText = document.getElementById("draftIntensityText");
-const draftIntensityMeter = document.getElementById("draftIntensityMeter");
-const draftThemes = document.getElementById("draftThemes");
-const draftPrompt = document.getElementById("draftPrompt");
 
 const chips = [...document.querySelectorAll(".chip")];
 
 let cameraStream = null;
 let faceApiReady = false;
-const sentimentHistoryStorageKey = "calmdown-ai-sentiment-history-v1";
+let latestExpressionScores = null;
+const sentimentHistoryStorageKey = "calmdown-ai-sentiment-history-v2";
 const sentimentHistory = loadSentimentHistory();
 
 const recommendationLibrary = {
@@ -149,26 +156,110 @@ const distressLexicon = {
   ],
 };
 
+const emotionModelCatalog = [
+  {
+    key: "calm",
+    label: "Calm",
+    valence: "Positive",
+    energy: "Low",
+    keywords: ["calm", "settled", "peaceful", "grounded", "steady", "relaxed"],
+  },
+  {
+    key: "joy",
+    label: "Joy",
+    valence: "Positive",
+    energy: "Medium",
+    keywords: ["happy", "joy", "excited", "good", "great", "content", "glad"],
+  },
+  {
+    key: "hopeful",
+    label: "Hopeful",
+    valence: "Positive",
+    energy: "Medium",
+    keywords: ["hopeful", "optimistic", "better", "improving", "motivated", "confident"],
+  },
+  {
+    key: "focused",
+    label: "Focused",
+    valence: "Positive",
+    energy: "Medium",
+    keywords: ["focused", "productive", "clear", "organized", "present", "engaged"],
+  },
+  {
+    key: "neutral",
+    label: "Neutral",
+    valence: "Neutral",
+    energy: "Medium",
+    keywords: ["okay", "fine", "normal", "neutral", "manageable"],
+  },
+  {
+    key: "fatigue",
+    label: "Fatigue",
+    valence: "Challenging",
+    energy: "Low",
+    keywords: ["tired", "drained", "exhausted", "sleepy", "fatigue", "low energy"],
+  },
+  {
+    key: "sadness",
+    label: "Sadness",
+    valence: "Challenging",
+    energy: "Low",
+    keywords: ["sad", "down", "low", "empty", "lonely", "hurt", "crying"],
+  },
+  {
+    key: "anxiety",
+    label: "Anxiety",
+    valence: "Challenging",
+    energy: "High",
+    keywords: ["anxious", "worried", "nervous", "restless", "uneasy", "panic"],
+  },
+  {
+    key: "stress",
+    label: "Stress",
+    valence: "Challenging",
+    energy: "High",
+    keywords: ["stressed", "pressure", "deadline", "tense", "strained", "burnout"],
+  },
+  {
+    key: "anger",
+    label: "Anger",
+    valence: "Challenging",
+    energy: "High",
+    keywords: ["angry", "frustrated", "irritated", "annoyed", "furious", "upset"],
+  },
+  {
+    key: "fear",
+    label: "Fear",
+    valence: "Challenging",
+    energy: "High",
+    keywords: ["fear", "afraid", "scared", "unsafe", "helpless", "terrified"],
+  },
+  {
+    key: "overwhelm",
+    label: "Overwhelm",
+    valence: "Challenging",
+    energy: "High",
+    keywords: ["overwhelmed", "can't cope", "cannot cope", "too much", "stuck", "flooded"],
+  },
+];
+
 function loadSentimentHistory() {
   try {
     const saved = localStorage.getItem(sentimentHistoryStorageKey);
     const parsed = saved ? JSON.parse(saved) : null;
-
-    if (Array.isArray(parsed) && parsed.length) {
+    if (Array.isArray(parsed)) {
       return parsed
         .filter(
           (entry) =>
-            entry &&
-            typeof entry.sentiment === "number" &&
-            typeof entry.stress === "number" &&
-            typeof entry.timestamp === "number"
+            typeof entry?.sentiment === "number" &&
+            typeof entry?.emotion === "string" &&
+            typeof entry?.createdAt === "string"
         )
         .slice(-5);
     }
   } catch (error) {
     console.error("Sentiment history could not be restored:", error);
   }
-
   return [];
 }
 
@@ -180,80 +271,153 @@ function saveSentimentHistory() {
   }
 }
 
-function formatEntryLabel(timestamp) {
+function formatEntryTime(isoString) {
+  const parsed = new Date(isoString);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Recent";
+  }
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date(timestamp));
+  }).format(parsed);
+}
+
+function sanitizeText(text) {
+  return (text || "").replace(/[&<>"']/g, (char) => {
+    const replacements = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+    return replacements[char] || char;
+  });
 }
 
 function renderSentimentTrend() {
-  if (!sentimentChart || !sentimentList) {
-    return;
-  }
-
   if (!sentimentHistory.length) {
-    sentimentChart.innerHTML =
-      '<div class="sentiment-empty">No entries yet. Analyze a check-in to build your personal sentiment trend.</div>';
-    sentimentList.innerHTML = "";
+    moodBars.innerHTML = `
+      <div class="trend-placeholder">
+        No entries yet. Add a check-in to build your real sentiment trend.
+      </div>
+    `;
+    moodTrendMeta.innerHTML = "";
     return;
   }
 
-  const chartWidth = 560;
-  const chartHeight = 210;
-  const leftPad = 36;
-  const rightPad = 16;
-  const topPad = 16;
-  const bottomPad = 24;
-  const innerWidth = chartWidth - leftPad - rightPad;
-  const innerHeight = chartHeight - topPad - bottomPad;
+  const width = 760;
+  const height = 230;
+  const padding = { top: 18, right: 16, bottom: 36, left: 40 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
   const maxIndex = Math.max(sentimentHistory.length - 1, 1);
 
-  const points = sentimentHistory
-    .map((entry, index) => {
-      const x = leftPad + (innerWidth * index) / maxIndex;
-      const y = topPad + ((100 - entry.sentiment) / 100) * innerHeight;
-      return { x, y, entry };
-    })
-    .filter(Boolean);
+  const points = sentimentHistory.map((entry, index) => {
+    const x = padding.left + (index / maxIndex) * plotWidth;
+    const y = padding.top + ((100 - entry.sentiment) / 100) * plotHeight;
+    return { x, y, entry, index };
+  });
 
-  const pointPath = points.map((point) => `${point.x},${point.y}`).join(" ");
-  const horizontalGuides = [0, 25, 50, 75, 100]
-    .map((score) => {
-      const y = topPad + ((100 - score) / 100) * innerHeight;
-      return `<line x1="${leftPad}" y1="${y}" x2="${chartWidth - rightPad}" y2="${y}" stroke="rgba(61,44,24,0.14)" stroke-width="1" />`;
-    })
-    .join("");
+  const linePath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+    .join(" ");
 
-  const dots = points
-    .map(
-      (point) =>
-        `<circle cx="${point.x}" cy="${point.y}" r="4" fill="#ca6d3f"><title>Sentiment ${Math.round(
-          point.entry.sentiment
-        )}/100</title></circle>`
-    )
-    .join("");
+  const areaPath = `${linePath} L ${points[points.length - 1].x.toFixed(2)} ${(
+    height - padding.bottom
+  ).toFixed(2)} L ${points[0].x.toFixed(2)} ${(height - padding.bottom).toFixed(2)} Z`;
 
-  sentimentChart.innerHTML = `
-    <svg viewBox="0 0 ${chartWidth} ${chartHeight}" role="img" aria-label="Sentiment trend for last five entries">
-      ${horizontalGuides}
-      <polyline fill="none" stroke="rgba(50,124,116,0.9)" stroke-width="3" points="${pointPath}" />
-      ${dots}
+  const yTicks = [0, 25, 50, 75, 100];
+  moodBars.innerHTML = `
+    <svg class="trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Sentiment trend for last 5 entries">
+      ${yTicks
+        .map((tick) => {
+          const y = padding.top + ((100 - tick) / 100) * plotHeight;
+          return `
+            <line class="trend-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"></line>
+            <text class="trend-y-label" x="${padding.left - 8}" y="${y + 4}" text-anchor="end">${tick}</text>
+          `;
+        })
+        .join("")}
+      <path class="trend-area" d="${areaPath}"></path>
+      <path class="trend-line" d="${linePath}"></path>
+      ${points
+        .map(
+          (point) => `
+            <circle class="trend-dot" cx="${point.x}" cy="${point.y}" r="4.5"></circle>
+            <text class="trend-x-label" x="${point.x}" y="${height - 12}" text-anchor="middle">E${point.index + 1}</text>
+          `
+        )
+        .join("")}
     </svg>
   `;
 
-  sentimentList.innerHTML = sentimentHistory
+  moodTrendMeta.innerHTML = sentimentHistory
     .map(
-      (entry) => `
-        <article class="sentiment-item">
-          <strong>${Math.round(entry.sentiment)} / 100</strong>
-          <span>${formatEntryLabel(entry.timestamp)}</span>
+      (entry, index) => `
+        <article class="trend-meta-row">
+          <span class="trend-entry-label">Entry ${index + 1} - ${sanitizeText(formatEntryTime(entry.createdAt))}</span>
+          <strong class="trend-emotion">${sanitizeText(entry.emotion)}</strong>
+          <span class="trend-score">${Math.round(entry.sentiment)} / 100</span>
+          <span class="trend-preview">${sanitizeText(entry.preview)}</span>
         </article>
       `
     )
     .join("");
+}
+
+function trackSentimentEntry(analysisResult, rawText) {
+  const trimmedText = rawText.trim();
+  sentimentHistory.push({
+    sentiment: Math.round(analysisResult.sentiment),
+    emotion: analysisResult.emotion,
+    createdAt: new Date().toISOString(),
+    preview: trimmedText ? trimmedText.slice(0, 70) : "Quick check-in",
+  });
+
+  while (sentimentHistory.length > 5) {
+    sentimentHistory.shift();
+  }
+  saveSentimentHistory();
+}
+
+function getConfidenceInsight(label, score) {
+  if (score >= 75) {
+    return `Strong confidence for ${label}. This is a stable facial signal for the current frame.`;
+  }
+  if (score >= 50) {
+    return `Moderate confidence for ${label}. Capturing another frame can improve reliability.`;
+  }
+  return `Low confidence. Try better lighting, front-facing pose, and a steady camera for clearer expression detection.`;
+}
+
+function renderExpressionConfidence(expressions = null, source = "none") {
+  const keys = ["neutral", "happy", "sad", "angry", "fearful", "disgusted", "surprised"];
+  const normalized = keys.map((key) => ({ key, value: expressions?.[key] || 0 }));
+  const sorted = [...normalized].sort((a, b) => b.value - a.value);
+  const dominant = sorted[0];
+  const second = sorted[1] || { value: 0 };
+  const topPercent = Math.round(dominant.value * 100);
+  const marginPercent = Math.round((dominant.value - second.value) * 100);
+  const reliability = clamp(Math.round(topPercent * 0.72 + Math.max(marginPercent, 0) * 0.28), 0, 100);
+
+  expressionConfidenceList.innerHTML = normalized
+    .map(
+      (item) => `
+        <div class="confidence-row">
+          <label>${titleCase(item.key)}</label>
+          <div class="confidence-track">
+            <div class="confidence-fill" style="width: ${Math.round(item.value * 100)}%;"></div>
+          </div>
+          <span class="confidence-value">${Math.round(item.value * 100)}%</span>
+        </div>
+      `
+    )
+    .join("");
+
+  confidenceSignalStatus.textContent =
+    source === "live" ? "Live model signal" : source === "demo" ? "Demo signal" : "Awaiting capture";
+  expressionReliabilityScore.textContent = `${reliability} / 100`;
+  expressionReliabilityNote.textContent =
+    source === "none"
+      ? "Start camera and capture expression to evaluate confidence across all facial emotions."
+      : getConfidenceInsight(titleCase(dominant.key), reliability);
 }
 
 function clamp(value, min, max) {
@@ -267,61 +431,114 @@ function titleCase(value) {
     .join(" ");
 }
 
-function updateDraftAssistant(text) {
-  if (!draftWordCount) {
-    return;
+function countKeywordHits(normalizedText, keywords) {
+  return keywords.reduce((total, keyword) => (normalizedText.includes(keyword) ? total + 1 : total), 0);
+}
+
+function buildFacialEmotionBlend(expressionScores = {}) {
+  const neutral = expressionScores.neutral || 0;
+  const happy = expressionScores.happy || 0;
+  const sad = expressionScores.sad || 0;
+  const angry = expressionScores.angry || 0;
+  const fearful = expressionScores.fearful || 0;
+  const surprised = expressionScores.surprised || 0;
+  const disgusted = expressionScores.disgusted || 0;
+
+  return {
+    calm: neutral * 0.55 + happy * 0.2,
+    joy: happy * 0.9 + surprised * 0.2,
+    hopeful: happy * 0.5 + neutral * 0.2 + surprised * 0.2,
+    focused: neutral * 0.5 + happy * 0.2,
+    neutral: neutral * 0.95,
+    fatigue: sad * 0.45 + neutral * 0.2,
+    sadness: sad * 0.95,
+    anxiety: fearful * 0.75 + surprised * 0.35,
+    stress: fearful * 0.45 + angry * 0.35 + neutral * 0.2,
+    anger: angry * 0.95 + disgusted * 0.35,
+    fear: fearful * 0.95,
+    overwhelm: fearful * 0.4 + surprised * 0.3 + sad * 0.2 + angry * 0.2,
+  };
+}
+
+function getIntensityLabel(probability) {
+  if (probability >= 18) {
+    return "High";
   }
-
-  const normalized = text.trim().toLowerCase();
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  const wordCount = words.length;
-  const sentenceCount = text.split(/[.!?]+/).map((part) => part.trim()).filter(Boolean).length;
-
-  const highMatches = distressLexicon.high.filter((term) => normalized.includes(term));
-  const mediumMatches = distressLexicon.medium.filter((term) => normalized.includes(term));
-  const positiveMatches = distressLexicon.positive.filter((term) => normalized.includes(term));
-
-  const uniqueThemes = [...new Set([...highMatches, ...mediumMatches, ...positiveMatches])];
-  const intensity = clamp(
-    highMatches.length * 18 + mediumMatches.length * 10 - positiveMatches.length * 6 + wordCount * 0.6,
-    0,
-    100
-  );
-
-  draftWordCount.textContent = `${wordCount} words`;
-  draftIntensityFill.style.width = `${intensity}%`;
-  draftIntensityMeter.setAttribute("aria-valuenow", String(Math.round(intensity)));
-
-  draftIntensityText.textContent =
-    intensity >= 70 ? "High emotional load" : intensity >= 40 ? "Moderate emotional load" : "Low signal";
-
-  if (!normalized) {
-    draftThemes.innerHTML = '<span class="theme-pill">Waiting for input</span>';
-    draftPrompt.textContent =
-      "Tip: mention what triggered the emotion and how long you've felt this way for better AI support guidance.";
-    return;
+  if (probability >= 10) {
+    return "Moderate";
   }
+  return "Low";
+}
 
-  draftThemes.innerHTML = uniqueThemes.length
-    ? uniqueThemes
-        .slice(0, 5)
-        .map((theme) => `<span class="theme-pill">${titleCase(theme)}</span>`)
-        .join("")
-    : '<span class="theme-pill">No clear keywords yet</span>';
+function buildEmotionSpectrum(normalizedText, analysisResult, expressionScores = null) {
+  const facialBlend = buildFacialEmotionBlend(expressionScores || {});
+  const entries = emotionModelCatalog.map((emotion) => {
+    const keywordHits = countKeywordHits(normalizedText, emotion.keywords);
+    let score = 2 + keywordHits * 8;
 
-  if (sentenceCount < 2) {
-    draftPrompt.textContent =
-      "Suggestion: add 1 more sentence about what triggered this feeling so the support plan can be more accurate.";
-  } else if (!normalized.includes("today") && !normalized.includes("week") && !normalized.includes("days")) {
-    draftPrompt.textContent =
-      "Suggestion: mention timeframe (today, this week, past few days) to improve trend tracking.";
-  } else if (highMatches.length > 0) {
-    draftPrompt.textContent =
-      "Suggestion: include one grounding action you can try now (breathing, short walk, hydration) for immediate relief.";
-  } else {
-    draftPrompt.textContent =
-      "Great detail level. You can now run analysis for sentiment, stress index, and personalized support recommendations.";
-  }
+    if (emotion.key === "neutral") {
+      score += 18;
+    }
+
+    if (emotion.valence === "Positive") {
+      score += analysisResult.sentiment * 0.08;
+      score += (100 - analysisResult.stress) * 0.04;
+    } else if (emotion.valence === "Challenging") {
+      score += analysisResult.stress * 0.06;
+      score += (100 - analysisResult.sentiment) * 0.04;
+    }
+
+    if (expressionScores) {
+      score += (facialBlend[emotion.key] || 0) * 35;
+    }
+
+    return { ...emotion, rawScore: Math.max(score, 0.6), keywordHits };
+  });
+
+  const total = entries.reduce((sum, entry) => sum + entry.rawScore, 0);
+
+  return entries.map((entry) => {
+    const probability = total > 0 ? (entry.rawScore / total) * 100 : 0;
+    return {
+      ...entry,
+      probability: Number(probability.toFixed(1)),
+      intensity: getIntensityLabel(probability),
+      signal:
+        entry.keywordHits > 0 && expressionScores
+          ? "Text + face"
+          : entry.keywordHits > 0
+            ? "Text"
+            : expressionScores
+              ? "Face + baseline"
+              : "Baseline",
+    };
+  });
+}
+
+function renderEmotionSpectrum(spectrum, hasFaceSignal) {
+  emotionSpectrumList.innerHTML = spectrum
+    .map(
+      (emotion) => `
+        <article class="emotion-row">
+          <div class="emotion-row-head">
+            <strong>${emotion.label}</strong>
+            <span>${emotion.probability}%</span>
+          </div>
+          <div class="emotion-bar">
+            <div class="emotion-bar-fill" style="width: ${emotion.probability}%;"></div>
+          </div>
+          <div class="emotion-row-meta">
+            ${emotion.intensity} intensity | ${emotion.valence} valence | ${emotion.energy} energy | ${emotion.signal}
+          </div>
+        </article>
+      `
+    )
+    .join("");
+
+  emotionModelStatus.textContent = hasFaceSignal ? "Text + face signals" : "Text signal only";
+  emotionSpectrumNote.textContent = hasFaceSignal
+    ? "Probabilities blend linguistic cues with detected facial expressions."
+    : "Probabilities currently use text and baseline priors. Start camera + capture for multimodal tracking.";
 }
 
 function analyzeText(text) {
@@ -423,8 +640,9 @@ function updateHero(result, expressionLabel) {
 }
 
 function applyAnalysis(expressionLabel = "Not captured yet", shouldTrack = false) {
-  updateDraftAssistant(emotionInput.value);
+  const normalizedText = emotionInput.value.trim().toLowerCase();
   const result = analyzeText(emotionInput.value);
+  const emotionSpectrum = buildEmotionSpectrum(normalizedText, result, latestExpressionScores);
 
   dominantEmotion.textContent = result.emotion;
   sentimentScore.textContent = `${Math.round(result.sentiment)} / 100`;
@@ -432,20 +650,13 @@ function applyAnalysis(expressionLabel = "Not captured yet", shouldTrack = false
   supportMode.textContent = result.support;
   supportResponse.textContent = result.response;
 
-  if (shouldTrack && emotionInput.value.trim()) {
-    sentimentHistory.push({
-      timestamp: Date.now(),
-      sentiment: Math.round(result.sentiment),
-      stress: Math.round(result.stress),
-    });
-    while (sentimentHistory.length > 5) {
-      sentimentHistory.shift();
-    }
-    saveSentimentHistory();
+  if (shouldTrack) {
+    trackSentimentEntry(result, emotionInput.value);
   }
 
   renderSentimentTrend();
   renderRecommendations(result.recommendations);
+  renderEmotionSpectrum(emotionSpectrum, Boolean(latestExpressionScores));
   updateHero(result, expressionLabel);
 }
 
@@ -503,6 +714,7 @@ function stopCamera() {
   cameraStream = null;
   cameraStatus.textContent = "Camera off";
   cameraMessage.textContent = "Turn on the camera so the frontend can estimate facial emotion cues.";
+  renderExpressionConfidence(null, "none");
 }
 
 async function detectExpression() {
@@ -518,6 +730,8 @@ async function detectExpression() {
         .withFaceExpressions();
 
       if (detection?.expressions) {
+        latestExpressionScores = detection.expressions;
+        renderExpressionConfidence(detection.expressions, "live");
         const sorted = Object.entries(detection.expressions).sort((a, b) => b[1] - a[1]);
         const [label, confidence] = sorted[0];
         const prettyLabel = `${titleCase(label)} (${Math.round(confidence * 100)}%)`;
@@ -532,6 +746,31 @@ async function detectExpression() {
 
   const fallbackExpressions = ["Neutral", "Slightly tense", "Calm", "Low energy", "Focused"];
   const picked = fallbackExpressions[Math.floor(Math.random() * fallbackExpressions.length)];
+  const fallbackExpressionMap = {
+    Neutral: { neutral: 0.72, happy: 0.1, sad: 0.06, fearful: 0.04, angry: 0.04, surprised: 0.02, disgusted: 0.02 },
+    "Slightly tense": {
+      neutral: 0.3,
+      happy: 0.04,
+      sad: 0.14,
+      fearful: 0.26,
+      angry: 0.14,
+      surprised: 0.08,
+      disgusted: 0.04,
+    },
+    Calm: { neutral: 0.52, happy: 0.34, sad: 0.04, fearful: 0.03, angry: 0.03, surprised: 0.02, disgusted: 0.02 },
+    "Low energy": {
+      neutral: 0.34,
+      happy: 0.05,
+      sad: 0.42,
+      fearful: 0.08,
+      angry: 0.05,
+      surprised: 0.03,
+      disgusted: 0.03,
+    },
+    Focused: { neutral: 0.66, happy: 0.16, sad: 0.05, fearful: 0.03, angry: 0.04, surprised: 0.04, disgusted: 0.02 },
+  };
+  latestExpressionScores = fallbackExpressionMap[picked] || null;
+  renderExpressionConfidence(latestExpressionScores, "demo");
   expressionOutput.textContent = `${picked} (demo estimate)`;
   expressionHint.textContent =
     "Showing a demo estimate because no live face expression result was returned. Replace this with your production facial model.";
@@ -552,9 +791,8 @@ startCameraButton.addEventListener("click", startCamera);
 toggleCameraButton.addEventListener("click", startCamera);
 stopCameraButton.addEventListener("click", stopCamera);
 captureButton.addEventListener("click", detectExpression);
-emotionInput.addEventListener("input", () => {
-  updateDraftAssistant(emotionInput.value);
-});
+breathingExerciseButton.addEventListener("click", startBreathingExercise);
+closeBreathingButton.addEventListener("click", closeBreathingExercise);
 
 chips.forEach((chip) => {
   chip.addEventListener("click", () => {
@@ -562,8 +800,26 @@ chips.forEach((chip) => {
     applyAnalysis(expressionOutput.textContent, true);
   });
 });
+let breathingInterval = null;
+
+function startBreathingExercise() {
+  breathingPanel.classList.remove("hidden");
+  let inhale = true;
+  breathingText.textContent = "Breathe In";
+
+  breathingInterval = setInterval(() => {
+    inhale = !inhale;
+    breathingText.textContent = inhale ? "Breathe In" : "Breathe Out";
+  }, 4000);
+}
+
+function closeBreathingExercise() {
+  breathingPanel.classList.add("hidden");
+  clearInterval(breathingInterval);
+}
 
 renderSentimentTrend();
 renderRecommendations(recommendationLibrary.low);
-updateDraftAssistant(emotionInput.value);
+renderExpressionConfidence(null, "none");
 applyAnalysis();
+
