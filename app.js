@@ -115,6 +115,57 @@ const recommendationLibrary = {
   ],
 };
 
+const emotionRecommendationLibrary = {
+  anxiety: [
+    { tag: "Anxiety", title: "5-4-3-2-1 grounding", text: "Name 5 things you see, 4 you feel, 3 you hear, 2 you smell, and 1 you taste to interrupt anxious spirals." },
+    { tag: "Anxiety", title: "Worry container note", text: "Write each worry once, then choose one action now and postpone the rest for later review." },
+  ],
+  stress: [
+    { tag: "Stress", title: "Single-task sprint", text: "Pick one smallest next step and do only that for 12 minutes with all notifications silenced." },
+    { tag: "Stress", title: "Body tension reset", text: "Unclench jaw, drop shoulders, and do 30 seconds of slow neck and wrist stretches." },
+  ],
+  overwhelm: [
+    { tag: "Overwhelm", title: "Three-item triage", text: "List everything, then keep only 3 essentials for today and defer the rest guilt-free." },
+    { tag: "Overwhelm", title: "Cognitive unload", text: "Speak your thoughts into a quick voice note to release mental load before planning." },
+  ],
+  sadness: [
+    { tag: "Mood", title: "Compassion check-in", text: "Write one kind sentence to yourself exactly like you would support a close friend." },
+    { tag: "Mood", title: "Low-energy activation", text: "Do one tiny action: shower, sunlight by window, or a 5-minute walk with no pressure." },
+  ],
+  fatigue: [
+    { tag: "Energy", title: "20-minute recharge", text: "Take a short rest break, hydrate, and avoid screens for a focused nervous-system reset." },
+    { tag: "Energy", title: "Energy budgeting", text: "Move one non-urgent task to tomorrow and protect your remaining energy for essentials." },
+  ],
+  anger: [
+    { tag: "Anger", title: "Pause before response", text: "Delay sending messages for 10 minutes, then re-read with a calmer tone and clear ask." },
+    { tag: "Anger", title: "Heat discharge walk", text: "Walk briskly for a few minutes to reduce physiological arousal before problem-solving." },
+  ],
+  fear: [
+    { tag: "Fear", title: "Safety anchoring", text: "Name what is safe right now in your environment and what support is currently available." },
+    { tag: "Fear", title: "Fact vs story list", text: "Split concerns into facts and assumptions, then act only on confirmed facts first." },
+  ],
+  joy: [
+    { tag: "Joy", title: "Savoring pause", text: "Take 60 seconds to name what is going well so your brain stores this positive state longer." },
+    { tag: "Joy", title: "Share the uplift", text: "Send one appreciation message to someone; prosocial moments help sustain positive mood." },
+  ],
+  hopeful: [
+    { tag: "Hope", title: "Momentum plan", text: "Capture one realistic next step for today to keep progress aligned with your hopeful state." },
+    { tag: "Hope", title: "Strength reflection", text: "Write one challenge you handled recently and what strength helped you through it." },
+  ],
+  calm: [
+    { tag: "Calm", title: "Protect the baseline", text: "Keep this calm by maintaining one boundary today: breaks, notifications, or workload limits." },
+    { tag: "Calm", title: "Quiet focus block", text: "Use a distraction-free 30-minute block to make progress while your mind is settled." },
+  ],
+  focused: [
+    { tag: "Focus", title: "Deep-work block", text: "Run one 45-minute focused session on your highest-impact task, then recover for 10 minutes." },
+    { tag: "Focus", title: "Completion cue", text: "Define a clear done-state before you begin so effort turns into visible completion." },
+  ],
+  neutral: [
+    { tag: "Neutral", title: "State check", text: "Pause for one minute and ask whether your body feels tense, tired, or steady right now." },
+    { tag: "Neutral", title: "Preventive reset", text: "Take a brief movement and hydration break to prevent gradual stress build-up later." },
+  ],
+};
+
 const distressLexicon = {
   high: [
     "anxious",
@@ -123,6 +174,7 @@ const distressLexicon = {
     "hopeless",
     "alone",
     "depressed",
+    "depression",
     "overwhelmed",
     "exhausted",
     "burnout",
@@ -131,6 +183,11 @@ const distressLexicon = {
     "cannot cope",
     "stressed",
     "helpless",
+    "suicidal",
+    "self harm",
+    "empty",
+    "numb",
+    "broken",
   ],
   medium: [
     "tired",
@@ -143,6 +200,9 @@ const distressLexicon = {
     "confused",
     "frustrated",
     "sad",
+    "down",
+    "low mood",
+    "gloomy",
   ],
   positive: [
     "hopeful",
@@ -153,6 +213,19 @@ const distressLexicon = {
     "focused",
     "supported",
     "okay",
+    "happy",
+    "joyful",
+    "excited",
+    "amazing",
+    "fantastic",
+    "delighted",
+    "thrilled",
+    "joyous",
+    "elated",
+    "euphoric",
+    "peaceful",
+    "confident",
+    "content",
   ],
 };
 
@@ -169,7 +242,23 @@ const emotionModelCatalog = [
     label: "Joy",
     valence: "Positive",
     energy: "Medium",
-    keywords: ["happy", "joy", "excited", "good", "great", "content", "glad"],
+    keywords: [
+      "happy",
+      "joy",
+      "joyous",
+      "excited",
+      "good",
+      "great",
+      "content",
+      "glad",
+      "delighted",
+      "ecstatic",
+      "thrilled",
+      "elated",
+      "euphoric",
+      "amazing",
+      "fantastic",
+    ],
   },
   {
     key: "hopeful",
@@ -204,7 +293,7 @@ const emotionModelCatalog = [
     label: "Sadness",
     valence: "Challenging",
     energy: "Low",
-    keywords: ["sad", "down", "low", "empty", "lonely", "hurt", "crying"],
+    keywords: ["sad", "down", "low", "empty", "lonely", "hurt", "crying", "depressed", "hopeless", "numb", "worthless"],
   },
   {
     key: "anxiety",
@@ -242,6 +331,36 @@ const emotionModelCatalog = [
     keywords: ["overwhelmed", "can't cope", "cannot cope", "too much", "stuck", "flooded"],
   },
 ];
+
+const severeRiskPhrases = [
+  "hopeless",
+  "worthless",
+  "can't cope",
+  "cannot cope",
+  "unsafe",
+  "give up",
+  "suicidal",
+  "self harm",
+  "want to die",
+  "don't want to live",
+  "end it all",
+  "end my life",
+];
+
+const emotionKeywordBoosters = {
+  calm: ["at peace", "steady", "safe", "composed", "settled"],
+  joy: ["joyful", "joyous", "cheerful", "delighted", "thrilled", "elated", "euphoric", "good mood"],
+  hopeful: ["hope", "optimistic", "progress", "improving", "encouraged"],
+  focused: ["focus", "clarity", "discipline", "productive", "on track"],
+  neutral: ["okay", "fine", "alright", "manageable"],
+  fatigue: ["sleep deprived", "worn out", "burned out", "no energy", "fatigued"],
+  sadness: ["heartbroken", "down", "empty", "tearful", "low mood"],
+  anxiety: ["anxiety", "overthinking", "uneasy", "on edge", "panic"],
+  stress: ["deadlines", "pressure", "workload", "overloaded", "tense"],
+  anger: ["mad", "resentful", "rage", "annoyed", "irritated"],
+  fear: ["afraid", "scared", "frightened", "unsafe", "dread"],
+  overwhelm: ["too much", "flooded", "out of control", "can't handle", "cannot handle"],
+};
 
 function loadSentimentHistory() {
   try {
@@ -431,8 +550,85 @@ function titleCase(value) {
     .join(" ");
 }
 
+function normalizeForAnalysis(text) {
+  return (text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9'\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function countTermHits(normalizedText, terms) {
+  if (!normalizedText) {
+    return 0;
+  }
+
+  return terms.reduce((total, term) => {
+    const escaped = escapeRegExp(term.toLowerCase()).replace(/\\ /g, "\\s+");
+    const regex = new RegExp(`(^|\\s)${escaped}(?=\\s|$)`, "g");
+    const matches = normalizedText.match(regex);
+    return total + (matches ? matches.length : 0);
+  }, 0);
+}
+
+function countIntensifiedTermHits(normalizedText, terms) {
+  if (!normalizedText) {
+    return 0;
+  }
+
+  const intensifiers = ["very", "extremely", "really", "so", "super", "totally", "deeply", "severely"];
+  return terms.reduce((total, term) => {
+    const escapedTerm = escapeRegExp(term.toLowerCase()).replace(/\\ /g, "\\s+");
+    const escapedIntensifiers = intensifiers.map((word) => escapeRegExp(word)).join("|");
+    const regex = new RegExp(`(^|\\s)(?:${escapedIntensifiers})\\s+${escapedTerm}(?=\\s|$)`, "g");
+    const matches = normalizedText.match(regex);
+    return total + (matches ? matches.length : 0);
+  }, 0);
+}
+
+function countNegatedTermHits(normalizedText, terms) {
+  if (!normalizedText) {
+    return 0;
+  }
+
+  const negators = ["not", "never", "hardly", "barely", "cannot", "can't", "don't", "didn't", "isn't", "wasn't"];
+  return terms.reduce((total, term) => {
+    const escapedTerm = escapeRegExp(term.toLowerCase()).replace(/\\ /g, "\\s+");
+    const escapedNegators = negators.map((word) => escapeRegExp(word)).join("|");
+    const regex = new RegExp(`(^|\\s)(?:${escapedNegators})\\s+${escapedTerm}(?=\\s|$)`, "g");
+    const matches = normalizedText.match(regex);
+    return total + (matches ? matches.length : 0);
+  }, 0);
+}
+
 function countKeywordHits(normalizedText, keywords) {
-  return keywords.reduce((total, keyword) => (normalizedText.includes(keyword) ? total + 1 : total), 0);
+  return countTermHits(normalizedText, keywords);
+}
+
+function buildTextEmotionSignals(normalizedText) {
+  const signals = {};
+
+  emotionModelCatalog.forEach((emotion) => {
+    const baseHits = countTermHits(normalizedText, emotion.keywords);
+    const boosterHits = countTermHits(normalizedText, emotionKeywordBoosters[emotion.key] || []);
+    const score = baseHits * 1.2 + boosterHits * 1.8;
+    signals[emotion.key] = Number(score.toFixed(3));
+  });
+
+  const signalSum = Object.values(signals).reduce((sum, value) => sum + value, 0);
+  if (signalSum < 0.8) {
+    signals.neutral = (signals.neutral || 0) + 1.2;
+  }
+
+  return signals;
+}
+
+function getDominantEmotionKey(emotionSignals) {
+  return Object.entries(emotionSignals).sort((a, b) => b[1] - a[1])[0]?.[0] || "neutral";
 }
 
 function buildFacialEmotionBlend(expressionScores = {}) {
@@ -461,10 +657,10 @@ function buildFacialEmotionBlend(expressionScores = {}) {
 }
 
 function getIntensityLabel(probability) {
-  if (probability >= 18) {
+  if (probability >= 22) {
     return "High";
   }
-  if (probability >= 10) {
+  if (probability >= 11) {
     return "Moderate";
   }
   return "Low";
@@ -474,31 +670,36 @@ function buildEmotionSpectrum(normalizedText, analysisResult, expressionScores =
   const facialBlend = buildFacialEmotionBlend(expressionScores || {});
   const entries = emotionModelCatalog.map((emotion) => {
     const keywordHits = countKeywordHits(normalizedText, emotion.keywords);
-    let score = 2 + keywordHits * 8;
-
-    if (emotion.key === "neutral") {
-      score += 18;
-    }
+    const textSignal = analysisResult.emotionSignals?.[emotion.key] || 0;
+    let score = 0.12 + keywordHits * 0.85 + textSignal * 2.8;
 
     if (emotion.valence === "Positive") {
-      score += analysisResult.sentiment * 0.08;
-      score += (100 - analysisResult.stress) * 0.04;
+      score += (analysisResult.sentiment / 100) * 1.5;
+      score += ((100 - analysisResult.stress) / 100) * 1.1;
     } else if (emotion.valence === "Challenging") {
-      score += analysisResult.stress * 0.06;
-      score += (100 - analysisResult.sentiment) * 0.04;
+      score += (analysisResult.stress / 100) * 1.7;
+      score += ((100 - analysisResult.sentiment) / 100) * 1.4;
     }
 
     if (expressionScores) {
-      score += (facialBlend[emotion.key] || 0) * 35;
+      score += (facialBlend[emotion.key] || 0) * 1.9;
     }
 
-    return { ...emotion, rawScore: Math.max(score, 0.6), keywordHits };
+    if (emotion.key === analysisResult.primaryEmotionKey) {
+      score += 1.25;
+    }
+
+    return { ...emotion, rawScore: Math.max(score, 0.05), keywordHits };
   });
 
-  const total = entries.reduce((sum, entry) => sum + entry.rawScore, 0);
+  const poweredEntries = entries.map((entry) => ({
+    ...entry,
+    weightedScore: Math.pow(entry.rawScore, 1.35),
+  }));
+  const total = poweredEntries.reduce((sum, entry) => sum + entry.weightedScore, 0);
 
-  return entries.map((entry) => {
-    const probability = total > 0 ? (entry.rawScore / total) * 100 : 0;
+  return poweredEntries.map((entry) => {
+    const probability = total > 0 ? (entry.weightedScore / total) * 100 : 0;
     return {
       ...entry,
       probability: Number(probability.toFixed(1)),
@@ -541,8 +742,27 @@ function renderEmotionSpectrum(spectrum, hasFaceSignal) {
     : "Probabilities currently use text and baseline priors. Start camera + capture for multimodal tracking.";
 }
 
+function buildPersonalizedRecommendations(primaryEmotionKey, risk) {
+  const riskKey = risk === "High" ? "high" : risk === "Moderate" ? "medium" : "low";
+  const emotionCards = emotionRecommendationLibrary[primaryEmotionKey] || emotionRecommendationLibrary.neutral;
+  const riskCards = recommendationLibrary[riskKey] || recommendationLibrary.low;
+
+  const merged = [...emotionCards, ...riskCards];
+  const unique = [];
+  const seenTitles = new Set();
+
+  merged.forEach((card) => {
+    if (!seenTitles.has(card.title) && unique.length < 4) {
+      seenTitles.add(card.title);
+      unique.push(card);
+    }
+  });
+
+  return unique;
+}
+
 function analyzeText(text) {
-  const normalized = text.trim().toLowerCase();
+  const normalized = normalizeForAnalysis(text);
 
   if (!normalized) {
     return {
@@ -552,60 +772,95 @@ function analyzeText(text) {
       risk: "Low",
       support: "Gentle check-in",
       response: "A quick emotional check-in will help the assistant tailor calming suggestions.",
-      recommendations: recommendationLibrary.low,
+      recommendations: buildPersonalizedRecommendations("neutral", "Low"),
+      emotionSignals: { neutral: 1.2 },
+      primaryEmotionKey: "neutral",
     };
   }
 
-  let sentiment = 50;
-  let stress = 25;
-  let highHits = 0;
-  let mediumHits = 0;
-  let positiveHits = 0;
+  const emotionSignals = buildTextEmotionSignals(normalized);
+  const primaryEmotionKey = getDominantEmotionKey(emotionSignals);
+  const primaryEmotionLabel =
+    emotionModelCatalog.find((entry) => entry.key === primaryEmotionKey)?.label || "Neutral";
 
-  distressLexicon.high.forEach((term) => {
-    if (normalized.includes(term)) {
-      highHits += 1;
-    }
-  });
+  const negativeTerms = [...distressLexicon.high, ...distressLexicon.medium];
+  const positiveTerms = distressLexicon.positive;
+  const highHits = countTermHits(normalized, distressLexicon.high);
+  const mediumHits = countTermHits(normalized, distressLexicon.medium);
+  const positiveHits = countTermHits(normalized, positiveTerms);
+  const positiveIntensityHits = countIntensifiedTermHits(normalized, positiveTerms);
+  const negativeIntensityHits = countIntensifiedTermHits(normalized, negativeTerms);
+  const negatedPositiveHits = countNegatedTermHits(normalized, positiveTerms);
+  const negatedNegativeHits = countNegatedTermHits(normalized, negativeTerms);
+  const severeHits = countTermHits(normalized, severeRiskPhrases);
+  const tokenCount = normalized.split(" ").filter(Boolean).length;
+  const positiveSignal =
+    positiveHits * 1.7 + positiveIntensityHits * 1.9 + negatedNegativeHits * 1.5 + (emotionSignals.joy || 0) * 0.65;
+  const negativeSignal =
+    highHits * 2.7 +
+    mediumHits * 1.5 +
+    negativeIntensityHits * 2.1 +
+    negatedPositiveHits * 1.8 +
+    severeHits * 2.6 +
+    (emotionSignals.sadness || 0) * 0.9 +
+    (emotionSignals.anxiety || 0) * 0.8 +
+    (emotionSignals.overwhelm || 0) * 0.9;
+  const verbosityPressure = clamp(tokenCount / 42, 0, 1.6);
 
-  distressLexicon.medium.forEach((term) => {
-    if (normalized.includes(term)) {
-      mediumHits += 1;
-    }
-  });
+  const sentiment = clamp(
+    52 + positiveSignal * 10.5 - negativeSignal * 10.8 + (emotionSignals.hopeful || 0) * 2.4,
+    0,
+    100
+  );
+  const stress = clamp(
+    12 +
+      negativeSignal * 12.8 +
+      (emotionSignals.anxiety || 0) * 5.2 +
+      (emotionSignals.overwhelm || 0) * 5.6 +
+      verbosityPressure * 7.5 -
+      positiveSignal * 6.8,
+    0,
+    100
+  );
 
-  distressLexicon.positive.forEach((term) => {
-    if (normalized.includes(term)) {
-      positiveHits += 1;
-    }
-  });
-
-  sentiment = clamp(50 - highHits * 16 - mediumHits * 8 + positiveHits * 10, 0, 100);
-  stress = clamp(25 + highHits * 18 + mediumHits * 9 - positiveHits * 6 + normalized.length / 18, 0, 100);
-
-  let emotion = "Reflective";
+  let emotion = primaryEmotionLabel;
   let risk = "Low";
   let support = "Gentle check-in";
   let response =
     "You sound fairly steady overall. A small recovery activity can help preserve that sense of calm.";
   let recommendations = recommendationLibrary.low;
+  const distressScore = stress * 0.62 + (100 - sentiment) * 0.48 + severeHits * 24;
 
-  if (stress >= 70 || sentiment <= 20) {
-    emotion = "High Distress";
+  // Guardrail: when positive signal clearly dominates and distress is low, avoid neutral fallback.
+  if (
+    primaryEmotionKey === "neutral" &&
+    positiveSignal >= 2.2 &&
+    negativeSignal < 1.2 &&
+    sentiment >= 65 &&
+    stress <= 35
+  ) {
+    emotion = positiveSignal >= 3.4 ? "Joy" : "Calm";
+  }
+
+  if (severeHits >= 1 && (sentiment <= 45 || stress >= 45)) {
+    risk = "High";
+    support = "Immediate calming support";
+    response =
+      "Your check-in includes severe distress cues. The interface should prioritize grounding, reduce cognitive load, and clearly prompt immediate human support if you may be unsafe.";
+    recommendations = recommendationLibrary.high;
+  } else if (distressScore >= 82 || stress >= 78 || sentiment <= 17) {
     risk = "High";
     support = "Immediate calming support";
     response =
       "Your check-in suggests elevated stress and emotional overload. The interface should respond with grounding exercises, low-pressure support, and clear pathways to human help if things feel unsafe.";
     recommendations = recommendationLibrary.high;
-  } else if (stress >= 45 || sentiment <= 45) {
-    emotion = "Strained";
+  } else if (distressScore >= 48 || stress >= 45 || sentiment <= 45) {
     risk = "Moderate";
     support = "Structured support";
     response =
       "Your words suggest that tension is building. The assistant should acknowledge that clearly, offer practical coping options, and keep the next step simple rather than overwhelming.";
     recommendations = recommendationLibrary.medium;
-  } else if (positiveHits > 0) {
-    emotion = "Stable";
+  } else if (positiveHits > 0 && sentiment >= 64) {
     risk = "Low";
     support = "Mood maintenance";
     response =
@@ -613,7 +868,19 @@ function analyzeText(text) {
     recommendations = recommendationLibrary.low;
   }
 
-  return { emotion, sentiment, stress, risk, support, response, recommendations };
+  recommendations = buildPersonalizedRecommendations(primaryEmotionKey, risk);
+
+  return {
+    emotion,
+    sentiment,
+    stress,
+    risk,
+    support,
+    response,
+    recommendations,
+    emotionSignals,
+    primaryEmotionKey,
+  };
 }
 
 function renderRecommendations(cards) {
@@ -640,7 +907,7 @@ function updateHero(result, expressionLabel) {
 }
 
 function applyAnalysis(expressionLabel = "Not captured yet", shouldTrack = false) {
-  const normalizedText = emotionInput.value.trim().toLowerCase();
+  const normalizedText = normalizeForAnalysis(emotionInput.value);
   const result = analyzeText(emotionInput.value);
   const emotionSpectrum = buildEmotionSpectrum(normalizedText, result, latestExpressionScores);
 
@@ -822,4 +1089,3 @@ renderSentimentTrend();
 renderRecommendations(recommendationLibrary.low);
 renderExpressionConfidence(null, "none");
 applyAnalysis();
-
