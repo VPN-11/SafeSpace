@@ -301,6 +301,7 @@ const emotionModelCatalog = [
     energy: "Medium",
     keywords: [
       "happy",
+      "happiness",
       "joy",
       "joyous",
       "excited",
@@ -406,7 +407,7 @@ const severeRiskPhrases = [
 
 const emotionKeywordBoosters = {
   calm: ["at peace", "steady", "safe", "composed", "settled"],
-  joy: ["joyful", "joyous", "cheerful", "delighted", "thrilled", "elated", "euphoric", "good mood"],
+  joy: ["joyful", "joyous", "cheerful", "delighted", "thrilled", "elated", "euphoric", "happiness", "good mood"],
   hopeful: ["hope", "optimistic", "progress", "improving", "encouraged"],
   focused: ["focus", "clarity", "discipline", "productive", "on track"],
   neutral: ["okay", "fine", "alright", "manageable"],
@@ -942,9 +943,42 @@ function getConfidenceInsight(label, score) {
   return `Low confidence. Try better lighting, front-facing pose, and a steady camera for clearer expression detection.`;
 }
 
+function normalizeExpressionScores(expressions = {}) {
+  const keys = ["neutral", "happy", "sad", "angry", "fearful", "disgusted", "surprised"];
+
+  const parseValue = (raw) => {
+    if (raw === undefined || raw === null) return 0;
+    if (typeof raw === "string") {
+      const s = raw.trim();
+      if (s.endsWith("%")) {
+        const n = parseFloat(s.slice(0, -1));
+        return Number.isFinite(n) ? clamp(n / 100, 0, 1) : 0;
+      }
+      const n = Number(s);
+      if (Number.isFinite(n)) {
+        return n > 1 ? clamp(n / 100, 0, 1) : clamp(n, 0, 1);
+      }
+      return 0;
+    }
+
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return 0;
+    return n > 1 ? clamp(n / 100, 0, 1) : clamp(n, 0, 1);
+  };
+
+  const values = keys.map((key) => parseValue(expressions?.[key]));
+  const total = values.reduce((sum, value) => sum + value, 0);
+  if (total <= 0) {
+    return null;
+  }
+
+  return keys.reduce((acc, key, index) => ({ ...acc, [key]: Number((values[index] / total).toFixed(4)) }), {});
+}
+
 function renderExpressionConfidence(expressions = null, source = "none", confidence = null) {
   const keys = ["neutral", "happy", "sad", "angry", "fearful", "disgusted", "surprised"];
-  const normalized = keys.map((key) => ({ key, value: expressions?.[key] || 0 }));
+  const normalizedExpressions = normalizeExpressionScores(expressions) || keys.reduce((acc, key) => ({ ...acc, [key]: 0 }), {});
+  const normalized = keys.map((key) => ({ key, value: normalizedExpressions[key] || 0 }));
   const sorted = [...normalized].sort((a, b) => b.value - a.value);
   const dominant = sorted[0];
   const second = sorted[1] || { value: 0 };
@@ -1019,8 +1053,8 @@ async function analyzeExpressionOnServer(payload) {
 }
 
 function applyExpressionResult(result) {
-  latestExpressionScores = result.expressionScores;
-  renderExpressionConfidence(result.expressionScores, result.sourceType, result.confidence);
+  latestExpressionScores = normalizeExpressionScores(result.expressionScores);
+  renderExpressionConfidence(latestExpressionScores, result.sourceType, result.confidence);
 
   const dominantLabel = `${result.dominantExpression.label} (${result.dominantExpression.confidence}%)`;
   expressionOutput.textContent = dominantLabel;
@@ -1100,7 +1134,9 @@ function buildTextEmotionSignals(normalizedText) {
   emotionModelCatalog.forEach((emotion) => {
     const baseHits = countTermHits(normalizedText, emotion.keywords);
     const boosterHits = countTermHits(normalizedText, emotionKeywordBoosters[emotion.key] || []);
-    const score = baseHits * 1.2 + boosterHits * 1.8;
+    const intensifiedHits = countIntensifiedTermHits(normalizedText, emotion.keywords);
+    // Give extra weight to intensified positive language (e.g., "very happy", "extremely joyful").
+    const score = baseHits * 1.2 + boosterHits * 1.8 + intensifiedHits * 1.6;
     signals[emotion.key] = Number(score.toFixed(3));
   });
 
@@ -1181,16 +1217,18 @@ function dampenContradictoryPositiveScore(score, emotion, context) {
     return score * (context.distressLevel === "high" ? 0.35 : 0.65);
   }
 
-  return 0;
+  // If there is no explicit positive signal but the context is moderate/high,
+  // softly reduce rather than zeroing out positive scores so mild positives remain detectable.
+  return score * (context.distressLevel === "high" ? 0.35 : 0.6);
 }
 
 function buildEmotionSpectrum(normalizedText, analysisResult, expressionScores = null) {
-  const facialBlend = buildFacialEmotionBlend(expressionScores || {});
+  const facialBlend = expressionScores ? buildFacialEmotionBlend(expressionScores) : {};
   const distressLevel = getDistressLevel(analysisResult);
   const entries = emotionModelCatalog.map((emotion) => {
     const keywordHits = countKeywordHits(normalizedText, emotion.keywords);
     const textSignal = analysisResult.emotionSignals?.[emotion.key] || 0;
-    let score = 0.12 + keywordHits * 0.85 + textSignal * 2.8;
+    let score = 0.12 + keywordHits * 1.0 + textSignal * 3.5;
 
     if (emotion.valence === "Positive") {
       score += (analysisResult.sentiment / 100) * 1.5;
@@ -1200,12 +1238,20 @@ function buildEmotionSpectrum(normalizedText, analysisResult, expressionScores =
       score += ((100 - analysisResult.sentiment) / 100) * 1.4;
     }
 
+    // Give a small positive boost when there is any explicit positive cue from text or face.
+    if (
+      emotion.valence === "Positive" &&
+      (keywordHits > 0 || textSignal > 0 || (facialBlend[emotion.key] || 0) > 0)
+    ) {
+      score += 0.9;
+    }
+
     if (expressionScores) {
-      score += (facialBlend[emotion.key] || 0) * 1.9;
+      score += (facialBlend[emotion.key] || 0) * 2.4;
     }
 
     if (emotion.key === analysisResult.primaryEmotionKey) {
-      score += 1.25;
+      score += 3.5;
     }
 
     score = dampenContradictoryPositiveScore(score, emotion, {
@@ -1219,7 +1265,7 @@ function buildEmotionSpectrum(normalizedText, analysisResult, expressionScores =
 
   const poweredEntries = entries.map((entry) => ({
     ...entry,
-    weightedScore: Math.pow(entry.rawScore, 1.35),
+    weightedScore: Math.pow(entry.rawScore, 2.0),
   }));
   const total = poweredEntries.reduce((sum, entry) => sum + entry.weightedScore, 0);
 
@@ -1552,9 +1598,10 @@ async function detectExpression() {
           applyExpressionResult(backendResult);
         } catch (error) {
           console.error("Backend expression analysis failed:", error);
-          latestExpressionScores = detection.expressions;
-          renderExpressionConfidence(detection.expressions, "live");
-          const sorted = Object.entries(detection.expressions).sort((a, b) => b[1] - a[1]);
+          const normalizedExpressions = normalizeExpressionScores(detection.expressions);
+          latestExpressionScores = normalizedExpressions;
+          renderExpressionConfidence(normalizedExpressions, "live");
+          const sorted = Object.entries(normalizedExpressions).sort((a, b) => b[1] - a[1]);
           const [label, confidence] = sorted[0];
           const prettyLabel = `${titleCase(label)} (${Math.round(confidence * 100)}%)`;
           expressionOutput.textContent = prettyLabel;

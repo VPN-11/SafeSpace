@@ -25,7 +25,7 @@ const POSITIVE_EMOTION_KEYS = new Set(["calm", "joy", "hopeful", "focused"]);
 
 const EMOTION_PROTOTYPES = {
   calm: "steady grounded settled peaceful breathing relaxed safe centered composed slow",
-  joy: "happy joyful delighted excited grateful smiling optimistic bright wonderful amazing uplifted",
+  joy: "happy joyful delighted excited grateful smiling optimistic bright wonderful amazing uplifted happiness",
   hopeful: "hopeful encouraged improving progress healing resilient optimistic tomorrow can manage",
   focused: "focused clear productive organized prepared engaged discipline momentum on track",
   neutral: "okay fine normal manageable stable average ordinary balanced",
@@ -88,8 +88,7 @@ const TOKEN_WEIGHTS = {
   support: 0.9,
   tired: -1.8,
   unsafe: -3.1,
-  worried: -2.0,
-  worthless: -3.2,
+  worried: -2.0,  happiness: 2.4,  worthless: -3.2,
 };
 
 const PHRASE_WEIGHTS = {
@@ -265,6 +264,12 @@ function tokenize(text) {
 }
 
 function simpleStem(token) {
+  if (token.endsWith("iness")) {
+    token = token.slice(0, -5) + "y";
+  } else if (token.endsWith("ness")) {
+    token = token.slice(0, -4);
+  }
+
   return token
     .replace(/'s$/g, "")
     .replace(/ing$/g, "")
