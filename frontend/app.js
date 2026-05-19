@@ -45,10 +45,12 @@ const crisisGuidance = document.getElementById("crisisGuidance");
 const crisisActions = document.getElementById("crisisActions");
 const expressionOutput = document.getElementById("expressionOutput");
 const expressionHint = document.getElementById("expressionHint");
-const expressionConfidenceList = document.getElementById("expressionConfidenceList");
-const confidenceSignalStatus = document.getElementById("confidenceSignalStatus");
-const expressionReliabilityScore = document.getElementById("expressionReliabilityScore");
-const expressionReliabilityNote = document.getElementById("expressionReliabilityNote");
+const wellnessMetrics = document.getElementById("wellnessMetrics");
+const wellnessStatus = document.getElementById("wellnessStatus");
+const wellnessSentiment = document.getElementById("wellnessSentiment");
+const wellnessStress = document.getElementById("wellnessStress");
+const wellnessScore = document.getElementById("wellnessScore");
+const wellnessInsight = document.getElementById("wellnessInsight");
 const emotionSpectrumList = document.getElementById("emotionSpectrumList");
 const emotionModelStatus = document.getElementById("emotionModelStatus");
 const emotionSpectrumNote = document.getElementById("emotionSpectrumNote");
@@ -79,7 +81,9 @@ const chips = [...document.querySelectorAll(".chip-row .chip")];
 
 let cameraStream = null;
 let faceApiReady = false;
+let faceApiLoadPromise = null;
 let latestExpressionScores = null;
+let isExpressionCaptureRunning = false;
 const expressionApiUrl = "/api/expression/analyze";
 const expressionHealthUrl = "/api/expression/health";
 const textAnalysisApiUrl = "/api/text/analyze";
@@ -102,6 +106,12 @@ let dashboardState = {
   emotion: "",
   risk: "",
 };
+
+function resetCapturedExpressionState() {
+  latestExpressionScores = null;
+  expressionOutput.textContent = "Waiting for capture";
+  renderExpressionConfidence(null, "none");
+}
 
 const recommendationLibrary = {
   high: [
@@ -561,8 +571,6 @@ function applyAuthState() {
     : "Sign in to save your check-ins, mood history, and personalized trend data securely.";
   openAuthButton.classList.toggle("hidden", isSignedIn);
   logoutButton.classList.toggle("hidden", !isSignedIn);
-  userDashboardCard.classList.toggle("hidden", !isSignedIn);
-  moodCheckinPanel.classList.toggle("hidden", !isSignedIn);
   if (!isSignedIn) {
     renderDashboardEmptyState("Sign in to view saved check-ins and dashboard history.");
   }
@@ -798,14 +806,34 @@ function renderUserDashboard(payload) {
   };
   const summary = payload.summary || {};
 
+  const computedTotalEntries = summary.totalEntries > 0 ? summary.totalEntries : pagination.total || checkins.length || 0;
+  const computedAverageSentiment = summary.totalEntries > 0 && Number.isFinite(summary.averageSentiment)
+    ? Number(summary.averageSentiment)
+    : checkins.length
+    ? Math.round(checkins.reduce((sum, entry) => sum + (Number(entry.sentiment) || 0), 0) / checkins.length)
+    : 0;
+  const computedAverageStress = summary.totalEntries > 0 && Number.isFinite(summary.averageStress)
+    ? Number(summary.averageStress)
+    : checkins.length
+    ? Math.round(checkins.reduce((sum, entry) => sum + (Number(entry.stress) || 0), 0) / checkins.length)
+    : 0;
+  const computedCommonEmotion = summary.mostCommonEmotion ||
+    (checkins.length
+      ? Object.entries(checkins.reduce((counts, entry) => {
+          const emotion = String(entry.emotion || "Neutral").trim();
+          counts[emotion] = (counts[emotion] || 0) + 1;
+          return counts;
+        }, {})).sort((left, right) => right[1] - left[1])[0]?.[0]
+      : "None yet");
+
   dashboardState.page = pagination.page;
   dashboardState.totalPages = pagination.totalPages;
 
-  dashboardTotalEntries.textContent = String(summary.totalEntries || 0);
-  dashboardAverageSentiment.textContent = `${Math.round(summary.averageSentiment || 0)} / 100`;
-  dashboardAverageStress.textContent = `${Math.round(summary.averageStress || 0)} / 100`;
-  dashboardCommonEmotion.textContent = summary.mostCommonEmotion || "None yet";
-  dashboardPageSummary.textContent = `${pagination.total || 0} saved entries`;
+  dashboardTotalEntries.textContent = String(computedTotalEntries);
+  dashboardAverageSentiment.textContent = `${Math.round(computedAverageSentiment || 0)} / 100`;
+  dashboardAverageStress.textContent = `${Math.round(computedAverageStress || 0)} / 100`;
+  dashboardCommonEmotion.textContent = computedCommonEmotion || "None yet";
+  dashboardPageSummary.textContent = `${pagination.total || computedTotalEntries} saved entries`;
   renderMoodCalendar(payload.calendar || payload.trend || []);
 
   const hasSelectedHistoryFilter = Boolean(dashboardState.emotion || dashboardState.risk);
@@ -945,6 +973,21 @@ function getConfidenceInsight(label, score) {
 
 function normalizeExpressionScores(expressions = {}) {
   const keys = ["neutral", "happy", "sad", "angry", "fearful", "disgusted", "surprised"];
+  const keyMap = {
+    neutral: "neutral",
+    happy: "happy",
+    joy: "happy",
+    sad: "sad",
+    sadness: "sad",
+    angry: "angry",
+    anger: "angry",
+    fearful: "fearful",
+    fear: "fearful",
+    disgusted: "disgusted",
+    disgust: "disgusted",
+    surprised: "surprised",
+    surprise: "surprised",
+  };
 
   const parseValue = (raw) => {
     if (raw === undefined || raw === null) return 0;
@@ -966,6 +1009,77 @@ function normalizeExpressionScores(expressions = {}) {
     return n > 1 ? clamp(n / 100, 0, 1) : clamp(n, 0, 1);
   };
 
+  const rawEntries = Object.entries(expressions || {}).reduce((acc, [key, value]) => {
+    const normalizedKey = String(key || "").trim().toLowerCase();
+    const mappedKey = keyMap[normalizedKey] || normalizedKey;
+    acc[mappedKey] = value;
+    return acc;
+  }, {});
+
+  const values = keys.map((key) => parseValue(expressions?.[key] ?? rawEntries[key]));
+  const total = values.reduce((sum, value) => sum + value, 0);
+  if (total <= 0) {
+    return null;
+  }
+
+  return keys.reduce((acc, key, index) => ({ ...acc, [key]: Number((values[index] / total).toFixed(4)) }), {});
+}
+
+function computeWellnessScore(sentimentValue = 0, stressValue = 0) {
+  // Sentiment: 0 to 1 (higher is better)
+  // Stress: 0 to 1 (lower is better)
+  const normalizedSentiment = clamp(sentimentValue, -1, 1);
+  const normalizedStress = clamp(stressValue, 0, 1);
+  
+  // Wellness = 70% sentiment contribution + 30% inverse stress
+  const sentimentContribution = ((normalizedSentiment + 1) / 2) * 70; // Scale -1..1 to 0..1, then 0..70
+  const stressContribution = (1 - normalizedStress) * 30; // Inverse stress, 0..30
+  const wellnessScore = Math.round(sentimentContribution + stressContribution);
+  
+  return {
+    wellnessScore: clamp(wellnessScore, 0, 100),
+    sentimentPercent: Math.round(((normalizedSentiment + 1) / 2) * 100),
+    stressPercent: Math.round(normalizedStress * 100),
+  };
+}
+
+function getWellnessInsight(wellness, sentiment, stress) {
+  if (wellness >= 75) {
+    return "You're in a strong emotional place. Maintain this momentum with your current routines.";
+  } else if (wellness >= 60) {
+    return "Your wellness is stable. A brief break or light activity could provide a boost.";
+  } else if (wellness >= 45) {
+    return "Your stress is notable. A grounding exercise or short break may help restore balance.";
+  } else if (wellness >= 30) {
+    return "You're experiencing significant stress. Consider a dedicated calm practice from the recommendations.";
+  } else {
+    return "Your wellness needs attention. Try one of the high-priority recommendations or reach out for support.";
+  }
+}
+
+function updateWellnessTracker(sentimentValue = 0, stressValue = 0) {
+  const wellness = computeWellnessScore(sentimentValue, stressValue);
+  
+  wellnessSentiment.textContent = `${wellness.sentimentPercent}% positive`;
+  wellnessStress.textContent = `${wellness.stressPercent}% elevated`;
+  wellnessScore.textContent = `${wellness.wellnessScore} / 100`;
+  wellnessInsight.textContent = getWellnessInsight(wellness.wellnessScore, sentimentValue, stressValue);
+}
+
+function safeNormalizeExpressionScores(expressions = {}) {
+  const normalized = normalizeExpressionScores(expressions);
+  if (normalized) {
+    return normalized;
+  }
+
+  const keys = ["neutral", "happy", "sad", "angry", "fearful", "disgusted", "surprised"];
+  const parseValue = (raw) => {
+    if (raw === undefined || raw === null) return 0;
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) return 0;
+    return numeric > 1 ? clamp(numeric / 100, 0, 1) : clamp(numeric, 0, 1);
+  };
+
   const values = keys.map((key) => parseValue(expressions?.[key]));
   const total = values.reduce((sum, value) => sum + value, 0);
   if (total <= 0) {
@@ -977,10 +1091,13 @@ function normalizeExpressionScores(expressions = {}) {
 
 function renderExpressionConfidence(expressions = null, source = "none", confidence = null) {
   const keys = ["neutral", "happy", "sad", "angry", "fearful", "disgusted", "surprised"];
-  const normalizedExpressions = normalizeExpressionScores(expressions) || keys.reduce((acc, key) => ({ ...acc, [key]: 0 }), {});
+  const normalizedExpressions =
+    safeNormalizeExpressionScores(expressions) ||
+    normalizeExpressionScores(expressions) ||
+    keys.reduce((acc, key) => ({ ...acc, [key]: 0 }), {});
   const normalized = keys.map((key) => ({ key, value: normalizedExpressions[key] || 0 }));
   const sorted = [...normalized].sort((a, b) => b.value - a.value);
-  const dominant = sorted[0];
+  const dominant = sorted[0] || { key: "neutral", value: 0 };
   const second = sorted[1] || { value: 0 };
   const topPercent = confidence?.top ?? Math.round(dominant.value * 100);
   const marginPercent = confidence?.margin ?? Math.round((dominant.value - second.value) * 100);
@@ -988,26 +1105,14 @@ function renderExpressionConfidence(expressions = null, source = "none", confide
     confidence?.reliability ??
     clamp(Math.round(topPercent * 0.72 + Math.max(marginPercent, 0) * 0.28), 0, 100);
 
-  expressionConfidenceList.innerHTML = normalized
-    .map(
-      (item) => `
-        <div class="confidence-row">
-          <label>${titleCase(item.key)}</label>
-          <div class="confidence-track">
-            <div class="confidence-fill" style="width: ${Math.round(item.value * 100)}%;"></div>
-          </div>
-          <span class="confidence-value">${Math.round(item.value * 100)}%</span>
-        </div>
-      `
-    )
-    .join("");
-
-  confidenceSignalStatus.textContent =
-    source === "live" ? "Live model signal" : source === "demo" ? "Demo signal" : "Awaiting capture";
-  expressionReliabilityScore.textContent = `${reliability} / 100`;
-  expressionReliabilityNote.textContent =
+  wellnessStatus.textContent =
+    source === "live" ? "Live facial signal" : source === "demo" ? "Demo signal" : "Ready";
+  wellnessSentiment.textContent = source === "none" ? "—" : `${titleCase(dominant.key)} ${topPercent}%`;
+  wellnessStress.textContent = source === "none" ? "—" : `${marginPercent}% confidence gap`;
+  wellnessScore.textContent = source === "none" ? "—" : `${reliability} / 100`;
+  wellnessInsight.textContent =
     source === "none"
-      ? "Start camera and capture expression to evaluate confidence across all facial emotions."
+      ? "Input text or a mood check-in to see your real-time wellness metrics and patterns."
       : getConfidenceInsight(titleCase(dominant.key), reliability);
 }
 
@@ -1045,6 +1150,68 @@ function captureFrameSnapshot() {
   };
 }
 
+function waitForVideoFrame(timeoutMs = 2500) {
+  if (webcamVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && webcamVideo.videoWidth && webcamVideo.videoHeight) {
+    return Promise.resolve(true);
+  }
+
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    let settled = false;
+
+    const finish = (isReady) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      webcamVideo.removeEventListener("loadedmetadata", checkReady);
+      webcamVideo.removeEventListener("canplay", checkReady);
+      resolve(isReady);
+    };
+
+    const checkReady = () => {
+      const isReady =
+        webcamVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        webcamVideo.videoWidth > 0 &&
+        webcamVideo.videoHeight > 0;
+      if (isReady || Date.now() - startedAt >= timeoutMs) {
+        finish(isReady);
+      }
+    };
+
+    webcamVideo.addEventListener("loadedmetadata", checkReady);
+    webcamVideo.addEventListener("canplay", checkReady);
+    const intervalId = window.setInterval(() => {
+      checkReady();
+      if (settled) {
+        window.clearInterval(intervalId);
+      }
+    }, 100);
+  });
+}
+
+function waitForFaceApiLibrary(timeoutMs = 4000) {
+  if (window.faceapi) {
+    return Promise.resolve(true);
+  }
+
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    const intervalId = window.setInterval(() => {
+      if (window.faceapi) {
+        window.clearInterval(intervalId);
+        resolve(true);
+        return;
+      }
+
+      if (Date.now() - startedAt >= timeoutMs) {
+        window.clearInterval(intervalId);
+        resolve(false);
+      }
+    }, 100);
+  });
+}
+
 async function analyzeExpressionOnServer(payload) {
   return apiRequest(expressionApiUrl, {
     method: "POST",
@@ -1053,8 +1220,8 @@ async function analyzeExpressionOnServer(payload) {
 }
 
 function applyExpressionResult(result) {
-  latestExpressionScores = normalizeExpressionScores(result.expressionScores);
-  renderExpressionConfidence(latestExpressionScores, result.sourceType, result.confidence);
+  latestExpressionScores = safeNormalizeExpressionScores(result.expressionScores) || normalizeExpressionScores(result.expressionScores);
+  renderExpressionConfidence(latestExpressionScores || result.expressionScores, result.sourceType, result.confidence);
 
   const dominantLabel = `${result.dominantExpression.label} (${result.dominantExpression.confidence}%)`;
   expressionOutput.textContent = dominantLabel;
@@ -1406,9 +1573,16 @@ function renderRecommendations(cards) {
     .join("");
 }
 
-function updateHero(result, expressionLabel) {
+function getDominantEmotionConfidence(emotionSpectrum = [], analysisResult = {}) {
+  const primaryKey = analysisResult.primaryEmotionKey;
+  const primaryEntry = emotionSpectrum.find((entry) => entry.key === primaryKey);
+  const dominantEntry = primaryEntry || [...emotionSpectrum].sort((a, b) => b.probability - a.probability)[0];
+  return Number(dominantEntry?.probability) || 0;
+}
+
+function updateHero(result, expressionLabel, emotionSpectrum = []) {
   heroMoodLabel.textContent = result.emotion;
-  heroStressScore.textContent = `${Math.round(result.stress)}%`;
+  heroStressScore.textContent = `${getDominantEmotionConfidence(emotionSpectrum, result)}%`;
   heroSummary.textContent = `${result.response} Facial cue: ${expressionLabel}.`;
   metricSentiment.textContent =
     result.sentiment >= 60 ? "Positive" : result.sentiment >= 35 ? "Mixed" : "Negative";
@@ -1440,6 +1614,11 @@ async function applyAnalysis(expressionLabel = "Not captured yet", shouldTrack =
   supportMode.textContent = result.support;
   supportResponse.textContent = result.response;
   renderCrisisSafety(result.safety);
+  
+  // Update wellness tracker with current sentiment and stress
+  const sentimentNormalized = result.sentiment / 100; // 0 to 1
+  const stressNormalized = result.stress / 100; // 0 to 1
+  updateWellnessTracker(sentimentNormalized * 2 - 1, stressNormalized); // Convert sentiment to -1..1
 
   if (shouldTrack) {
     try {
@@ -1459,7 +1638,7 @@ async function applyAnalysis(expressionLabel = "Not captured yet", shouldTrack =
   renderSentimentTrend();
   renderRecommendations(result.recommendations);
   renderEmotionSpectrum(emotionSpectrum, Boolean(latestExpressionScores));
-  updateHero(result, expressionLabel);
+  updateHero(result, expressionLabel, emotionSpectrum);
 }
 
 async function handleAuthSubmit(event) {
@@ -1518,13 +1697,23 @@ async function handleLogout() {
 }
 
 async function loadFaceApiModels() {
-  if (!window.faceapi) {
+  if (faceApiReady) {
+    return true;
+  }
+
+  if (faceApiLoadPromise) {
+    return faceApiLoadPromise;
+  }
+
+  const hasFaceApiLibrary = await waitForFaceApiLibrary();
+  if (!hasFaceApiLibrary) {
+    console.error("Face expression library did not load before model initialization.");
     expressionHint.textContent =
       "Face expression library not loaded. The UI still supports webcam capture and backend integration.";
     return false;
   }
 
-  try {
+  faceApiLoadPromise = (async () => {
     const modelBase = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/";
     await Promise.all([
       window.faceapi.nets.tinyFaceDetector.loadFromUri(modelBase),
@@ -1534,8 +1723,13 @@ async function loadFaceApiModels() {
     expressionHint.textContent =
       "Expression model loaded. Capture a frame to estimate calm, happy, neutral, sad, or fearful cues.";
     return true;
+  })();
+
+  try {
+    return await faceApiLoadPromise;
   } catch (error) {
     console.error("Face model failed to load:", error);
+    faceApiLoadPromise = null;
     expressionHint.textContent =
       "Webcam works, but the face emotion model could not load. Hook this UI to your preferred browser model or API.";
     return false;
@@ -1544,12 +1738,26 @@ async function loadFaceApiModels() {
 
 async function startCamera() {
   if (cameraStream) {
+    console.info("Camera stream already active.");
     return;
   }
 
   try {
+    resetCapturedExpressionState();
+    console.info("Requesting webcam access for expression capture.");
     cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
     webcamVideo.srcObject = cameraStream;
+    webcamVideo.onloadedmetadata = () => {
+      if (webcamVideo.paused) {
+        webcamVideo.play().catch((error) => {
+          console.error("Webcam playback failed after metadata loaded:", error);
+        });
+      }
+    };
+    await webcamVideo.play().catch((error) => {
+      console.error("Initial webcam playback failed:", error);
+    });
+    await waitForVideoFrame();
     cameraStatus.textContent = "Camera on";
     cameraMessage.textContent = "Camera is live. Capture a frame to estimate facial emotion cues.";
     await loadFaceApiModels();
@@ -1571,93 +1779,158 @@ function stopCamera() {
   cameraStream = null;
   cameraStatus.textContent = "Camera off";
   cameraMessage.textContent = "Turn on the camera so the frontend can estimate facial emotion cues.";
-  renderExpressionConfidence(null, "none");
 }
 
 async function detectExpression() {
-  if (!cameraStream) {
-    expressionOutput.textContent = "Start camera first";
+  if (isExpressionCaptureRunning) {
+    console.info("Expression capture already running; ignoring duplicate click.");
     return;
   }
 
-  const frame = captureFrameSnapshot();
-
-  if (faceApiReady && window.faceapi) {
-    try {
-      const detection = await window.faceapi
-        .detectSingleFace(webcamVideo, new window.faceapi.TinyFaceDetectorOptions())
-        .withFaceExpressions();
-
-      if (detection?.expressions) {
-        try {
-          const backendResult = await analyzeExpressionOnServer({
-            sourceType: "live",
-            expressionScores: detection.expressions,
-            frame,
-          });
-          applyExpressionResult(backendResult);
-        } catch (error) {
-          console.error("Backend expression analysis failed:", error);
-          const normalizedExpressions = normalizeExpressionScores(detection.expressions);
-          latestExpressionScores = normalizedExpressions;
-          renderExpressionConfidence(normalizedExpressions, "live");
-          const sorted = Object.entries(normalizedExpressions).sort((a, b) => b[1] - a[1]);
-          const [label, confidence] = sorted[0];
-          const prettyLabel = `${titleCase(label)} (${Math.round(confidence * 100)}%)`;
-          expressionOutput.textContent = prettyLabel;
-          expressionHint.textContent =
-            "Using browser-only expression results because the backend service is unavailable.";
-          applyAnalysis(prettyLabel, true);
-        }
-        return;
-      }
-    } catch (error) {
-      console.error("Expression detection failed:", error);
-    }
-  }
-
-  const fallbackExpressions = ["Neutral", "Slightly tense", "Calm", "Low energy", "Focused"];
-  const picked = fallbackExpressions[Math.floor(Math.random() * fallbackExpressions.length)];
-  const fallbackExpressionMap = {
-    Neutral: { neutral: 0.72, happy: 0.1, sad: 0.06, fearful: 0.04, angry: 0.04, surprised: 0.02, disgusted: 0.02 },
-    "Slightly tense": {
-      neutral: 0.3,
-      happy: 0.04,
-      sad: 0.14,
-      fearful: 0.26,
-      angry: 0.14,
-      surprised: 0.08,
-      disgusted: 0.04,
-    },
-    Calm: { neutral: 0.52, happy: 0.34, sad: 0.04, fearful: 0.03, angry: 0.03, surprised: 0.02, disgusted: 0.02 },
-    "Low energy": {
-      neutral: 0.34,
-      happy: 0.05,
-      sad: 0.42,
-      fearful: 0.08,
-      angry: 0.05,
-      surprised: 0.03,
-      disgusted: 0.03,
-    },
-    Focused: { neutral: 0.66, happy: 0.16, sad: 0.05, fearful: 0.03, angry: 0.04, surprised: 0.04, disgusted: 0.02 },
-  };
-  const fallbackScores = fallbackExpressionMap[picked] || null;
+  isExpressionCaptureRunning = true;
+  captureButton.disabled = true;
 
   try {
-    const backendResult = await analyzeExpressionOnServer({
-      sourceType: "demo",
-      expressionScores: fallbackScores,
-      frame,
+    if (!cameraStream) {
+      await startCamera();
+    }
+
+    if (!cameraStream) {
+      expressionOutput.textContent = "Camera unavailable";
+      expressionHint.textContent = "Camera could not be started. Check browser permission and try again.";
+      return;
+    }
+
+    expressionOutput.textContent = "Capturing...";
+    expressionHint.textContent = "Reading the current webcam frame.";
+
+    const hasVideoFrame = await waitForVideoFrame();
+    if (!hasVideoFrame) {
+      console.warn("Webcam video frame was not ready for capture.", {
+        readyState: webcamVideo.readyState,
+        videoWidth: webcamVideo.videoWidth,
+        videoHeight: webcamVideo.videoHeight,
+      });
+      expressionOutput.textContent = "Camera warming up";
+      expressionHint.textContent = "The camera is still warming up. Try capture again in a moment.";
+      return;
+    }
+
+    const frame = captureFrameSnapshot();
+    console.info("Captured webcam frame for expression detection.", {
+      width: frame.width,
+      height: frame.height,
+      hasImage: Boolean(frame.imageDataUrl),
     });
-    applyExpressionResult(backendResult);
-  } catch (error) {
-    console.error("Backend expression analysis failed:", error);
-    latestExpressionScores = fallbackScores;
-    renderExpressionConfidence(latestExpressionScores, "demo");
-    expressionOutput.textContent = `${picked} (demo estimate)`;
-    expressionHint.textContent =
-      "Showing a demo estimate because no live face expression result was returned and the backend service is unavailable.";
-    applyAnalysis(`${picked} (demo estimate)`, true);
+
+    const modelReady = await loadFaceApiModels();
+
+    if (modelReady && window.faceapi) {
+      try {
+        console.info("Running browser face expression detection.");
+        const detection = await window.faceapi
+          .detectSingleFace(
+            webcamVideo,
+            new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 })
+          )
+          .withFaceExpressions();
+
+        if (detection?.expressions) {
+          const browserExpressions =
+            safeNormalizeExpressionScores(detection.expressions) ||
+            normalizeExpressionScores(detection.expressions) ||
+            detection.expressions;
+          latestExpressionScores = browserExpressions;
+          renderExpressionConfidence(browserExpressions, "live");
+          const browserSorted = Object.entries(browserExpressions).sort((a, b) => b[1] - a[1]);
+          const [browserLabel, browserConfidence] = browserSorted[0] || ["neutral", 0];
+          const browserPrettyLabel = `${titleCase(browserLabel)} (${Math.round(browserConfidence * 100)}%)`;
+          expressionOutput.textContent = browserPrettyLabel;
+          expressionHint.textContent = "Live browser expression detected. Refining with the backend service...";
+          console.info("Browser expression detection succeeded.", {
+            label: browserLabel,
+            confidence: browserConfidence,
+          });
+
+          try {
+            const backendResult = await analyzeExpressionOnServer({
+              sourceType: "live",
+              expressionScores: detection.expressions,
+              frame,
+            });
+            applyExpressionResult(backendResult);
+          } catch (error) {
+            console.error("Backend expression analysis failed:", error);
+            expressionHint.textContent =
+              "Using browser-only expression results because the backend service is unavailable.";
+            applyAnalysis(browserPrettyLabel, true);
+          }
+          return;
+        }
+        console.warn("No face expression result returned for the current webcam frame.");
+      } catch (error) {
+        console.error("Expression detection failed:", error);
+      }
+    }
+
+    try {
+      const backendResult = await analyzeExpressionOnServer({
+        sourceType: "live",
+        expressionScores: {},
+        frame,
+      });
+      applyExpressionResult(backendResult);
+      return;
+    } catch (error) {
+      console.error("Backend expression analysis failed:", error);
+    }
+
+    const fallbackExpressions = ["Neutral", "Slightly tense", "Calm", "Low energy", "Focused"];
+    const picked = fallbackExpressions[Math.floor(Math.random() * fallbackExpressions.length)];
+    const fallbackExpressionMap = {
+      Neutral: { neutral: 0.72, happy: 0.1, sad: 0.06, fearful: 0.04, angry: 0.04, surprised: 0.02, disgusted: 0.02 },
+      "Slightly tense": {
+        neutral: 0.3,
+        happy: 0.04,
+        sad: 0.14,
+        fearful: 0.26,
+        angry: 0.14,
+        surprised: 0.08,
+        disgusted: 0.04,
+      },
+      Calm: { neutral: 0.52, happy: 0.34, sad: 0.04, fearful: 0.03, angry: 0.03, surprised: 0.02, disgusted: 0.02 },
+      "Low energy": {
+        neutral: 0.34,
+        happy: 0.05,
+        sad: 0.42,
+        fearful: 0.08,
+        angry: 0.05,
+        surprised: 0.03,
+        disgusted: 0.03,
+      },
+      Focused: { neutral: 0.66, happy: 0.16, sad: 0.05, fearful: 0.03, angry: 0.04, surprised: 0.04, disgusted: 0.02 },
+    };
+    const fallbackScores = fallbackExpressionMap[picked] || null;
+
+    try {
+      const backendResult = await analyzeExpressionOnServer({
+        sourceType: "demo",
+        expressionScores: fallbackScores,
+        frame,
+      });
+      applyExpressionResult(backendResult);
+    } catch (error) {
+      console.error("Backend expression analysis failed:", error);
+      latestExpressionScores = fallbackScores;
+      renderExpressionConfidence(latestExpressionScores, "demo");
+      expressionOutput.textContent = `${picked} (demo estimate)`;
+      expressionHint.textContent =
+        "Showing a demo estimate because no live face expression result was returned and the backend service is unavailable.";
+      applyAnalysis(`${picked} (demo estimate)`, true);
+    }
+  } finally {
+    isExpressionCaptureRunning = false;
+    captureButton.disabled = false;
   }
 }
 

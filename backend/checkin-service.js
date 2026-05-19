@@ -1,7 +1,12 @@
-const Checkin = require("./models/Checkin");
+const { connectDB } = require("./config/db");
 
 const CHECKIN_SELECT_FIELDS =
   "text sentiment stress emotion risk support primaryEmotionKey expressionLabel expressionScores safety createdAt";
+
+async function getCheckinModel() {
+  await connectDB();
+  return require("./models/Checkin");
+}
 
 function normalizeCheckin(entry) {
   const normalized = { ...entry };
@@ -46,6 +51,7 @@ function normalizeExactFilter(value) {
 }
 
 async function saveCheckin(userId, payload) {
+  const Checkin = await getCheckinModel();
   const entry = await Checkin.create({
     userId,
     text: String(payload.text || "").trim(),
@@ -65,6 +71,7 @@ async function saveCheckin(userId, payload) {
 }
 
 async function listRecentCheckins(userId, limit = 5) {
+  const Checkin = await getCheckinModel();
   const checkins = await Checkin.find({ userId })
     .sort({ createdAt: -1 })
     .limit(limit)
@@ -103,6 +110,7 @@ function buildCheckinQuery(userId, filters = {}) {
 }
 
 async function summarizeCheckins(query) {
+  const Checkin = await getCheckinModel();
   const [summary] = await Checkin.aggregate([
     { $match: query },
     {
@@ -152,6 +160,7 @@ async function summarizeCheckins(query) {
 }
 
 async function listCheckins(userId, options = {}) {
+  const Checkin = await getCheckinModel();
   const page = clampInteger(options.page, 1, 1, 100000);
   const limit = clampInteger(options.limit, 20, 1, 50);
   const query = buildCheckinQuery(userId, options);

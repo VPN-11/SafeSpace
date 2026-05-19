@@ -23,12 +23,7 @@
               <h1>SafeSpace.ai</h1>
             </div>
           </div>
-          <div class="topbar-actions">
-            <span class="status-pill account-pill" id="authStateLabel">Guest mode</span>
-            <button class="ghost-button" id="demoFillButton" type="button">Try Demo Input</button>
-            <button class="ghost-button" id="openAuthButton" type="button">Sign In</button>
-            <button class="ghost-button hidden" id="logoutButton" type="button">Log Out</button>
-          </div>
+          <button class="ghost-button" id="demoFillButton" type="button">Try Demo Input</button>
         </nav>
 
         <section class="hero-grid">
@@ -53,9 +48,6 @@
 
           <aside class="hero-card">
             <p class="card-kicker">Live support snapshot</p>
-            <p class="small-note" id="accountSummary">
-              Sign in to save your check-ins, mood history, and personalized trend data securely.
-            </p>
             <div class="hero-score">
               <span id="heroMoodLabel">Balanced</span>
               <strong id="heroStressScore">34%</strong>
@@ -166,29 +158,28 @@
             <div class="expression-ai-header">
               <div>
                 <p class="section-label">AI-ML Feature</p>
-                <h4>Wellness Tracker</h4>
+                <h4>Facial Mood Snapshot</h4>
               </div>
-              <span class="status-pill" id="wellnessStatus">Ready</span>
+              <span class="status-pill" id="confidenceSignalStatus">Awaiting capture</span>
             </div>
-            <div class="wellness-metrics" id="wellnessMetrics">
-              <div class="wellness-row">
-                <span>Sentiment score</span>
-                <strong id="wellnessSentiment">—</strong>
+            <div class="face-emotion-summary" id="faceEmotionSummary">
+              <div class="face-summary-row">
+                <span>Face mood</span>
+                <strong id="expressionFaceMood">Waiting for capture</strong>
               </div>
-              <div class="wellness-row">
-                <span>Stress level</span>
-                <strong id="wellnessStress">—</strong>
+              <div class="face-summary-row">
+                <span>Primary signal</span>
+                <strong id="expressionFacePrimary">—</strong>
               </div>
-              <div class="wellness-row">
-                <span>Wellness score</span>
-                <strong id="wellnessScore">—</strong>
+              <div class="face-summary-row">
+                <span>Signal strength</span>
+                <strong id="expressionFaceStrength">—</strong>
               </div>
             </div>
-            <div class="wellness-insight">
-              <p id="wellnessInsight">
-                Input text or a mood check-in to see your real-time wellness metrics and patterns.
-              </p>
-            </div>
+            <div class="expression-confidence-list" id="expressionConfidenceList"></div>
+            <p class="small-note" id="expressionFaceNote">
+              This feature uses live facial emotion scores to provide a focused mood snapshot for your current expression.
+            </p>
           </div>
 
           <div class="quote-stack" aria-label="Motivational quotes">
@@ -263,103 +254,6 @@
             <div class="mood-bars" id="moodBars"></div>
             <div class="mood-trend-meta" id="moodTrendMeta"></div>
           </div>
-
-          <div class="user-dashboard-card" id="userDashboardCard">
-            <div class="dashboard-header">
-              <div>
-                <span class="section-label">Account Dashboard</span>
-                <h4>Your mood calendar</h4>
-              </div>
-              <span class="small-note" id="dashboardPageSummary">Sign in to view saved entries</span>
-            </div>
-
-            <div class="dashboard-summary-grid">
-              <article class="dashboard-summary-card">
-                <span>Total check-ins</span>
-                <strong id="dashboardTotalEntries">0</strong>
-              </article>
-              <article class="dashboard-summary-card">
-                <span>Average mood</span>
-                <strong id="dashboardAverageSentiment">0 / 100</strong>
-              </article>
-              <article class="dashboard-summary-card">
-                <span>Average stress</span>
-                <strong id="dashboardAverageStress">0 / 100</strong>
-              </article>
-              <article class="dashboard-summary-card">
-                <span>Most common emotion</span>
-                <strong id="dashboardCommonEmotion">None yet</strong>
-              </article>
-            </div>
-
-            <div class="mood-calendar-card">
-              <div class="dashboard-header">
-                <div>
-                  <span class="section-label">Mood Calendar</span>
-                  <h4 id="moodCalendarTitle">Saved mood by day</h4>
-                </div>
-                <span class="small-note">Colored by average daily stress</span>
-              </div>
-              <div class="mood-calendar-weekdays" aria-hidden="true">
-                <span>Sun</span>
-                <span>Mon</span>
-                <span>Tue</span>
-                <span>Wed</span>
-                <span>Thu</span>
-                <span>Fri</span>
-                <span>Sat</span>
-              </div>
-              <div class="mood-calendar-grid" id="moodCalendarGrid"></div>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel mood-checkin-panel" id="moodCheckinPanel">
-          <div class="panel-header">
-            <div>
-              <p class="section-label">Mood Check-in</p>
-              <h3>Past check-in records</h3>
-            </div>
-            <span class="small-note">Scrollable history of saved emotional check-ins</span>
-          </div>
-
-          <div class="dashboard-filter-row">
-            <label class="dashboard-filter">
-              <span>Emotion</span>
-              <select id="dashboardEmotionFilter">
-                <option value="">Select</option>
-                <option value="Calm">Calm</option>
-                <option value="Joy">Joy</option>
-                <option value="Hopeful">Hopeful</option>
-                <option value="Focused">Focused</option>
-                <option value="Neutral">Neutral</option>
-                <option value="Fatigue">Fatigue</option>
-                <option value="Sadness">Sadness</option>
-                <option value="Anxiety">Anxiety</option>
-                <option value="Stress">Stress</option>
-                <option value="Anger">Anger</option>
-                <option value="Fear">Fear</option>
-                <option value="Overwhelm">Overwhelm</option>
-              </select>
-            </label>
-            <label class="dashboard-filter">
-              <span>Risk</span>
-              <select id="dashboardRiskFilter">
-                <option value="">Select</option>
-                <option value="Low">Low</option>
-                <option value="Moderate">Moderate</option>
-                <option value="High">High</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="dashboard-history-list" id="dashboardHistoryList"></div>
-
-          <div class="dashboard-pagination">
-            <button class="ghost-button" id="dashboardPreviousButton" type="button">Previous</button>
-            <span id="dashboardPaginationLabel">Page 1 of 1</span>
-            <button class="ghost-button" id="dashboardNextButton" type="button">Next</button>
-          </div>
         </section>
 
         <section class="panel recommendations-panel">
@@ -386,14 +280,6 @@
               Share a check-in above to receive a supportive response, risk summary, and calming next
               steps.
             </p>
-            <div class="crisis-panel hidden" id="crisisPanel">
-              <div>
-                <span class="section-label">Safety Check</span>
-                <h4 id="crisisTitle">Support escalation</h4>
-              </div>
-              <p id="crisisGuidance"></p>
-              <div class="crisis-actions" id="crisisActions"></div>
-            </div>
             <button class="primary-button" id="breathingExerciseButton" type="button">
               Start Breathing Exercise
             </button>
@@ -422,62 +308,9 @@
       </main>
     </div>
 
-    <div class="auth-modal hidden" id="authModal" aria-hidden="true">
-      <div class="auth-backdrop" id="authBackdrop"></div>
-      <section class="auth-dialog panel" aria-labelledby="authTitle">
-        <div class="panel-header">
-          <div>
-            <p class="section-label">Secure Access</p>
-            <h3 id="authTitle">Save Your Check-Ins</h3>
-          </div>
-          <button class="icon-button" id="closeAuthButton" type="button" aria-label="Close sign in panel">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4Z" />
-            </svg>
-          </button>
-        </div>
-
-        <div class="auth-tabs" role="tablist" aria-label="Authentication mode">
-          <button class="chip active" id="loginTabButton" type="button">Sign In</button>
-          <button class="chip" id="registerTabButton" type="button">Create Account</button>
-        </div>
-
-        <form class="auth-form" id="authForm">
-          <label class="auth-field hidden" for="authNameField" id="authNameFieldWrap">
-            <span class="textarea-label">Name</span>
-            <input id="authNameField" name="name" type="text" placeholder="Your name" />
-          </label>
-
-          <label class="auth-field" for="authEmailField">
-            <span class="textarea-label">Email</span>
-            <input id="authEmailField" name="email" type="email" placeholder="you@example.com" required />
-          </label>
-
-          <label class="auth-field" for="authPasswordField">
-            <span class="textarea-label">Password</span>
-            <input
-              id="authPasswordField"
-              name="password"
-              type="password"
-              placeholder="Minimum 6 characters"
-              required
-            />
-          </label>
-
-          <p class="small-note auth-note" id="authDescription">
-            Sign in to keep your check-ins, saved history, and trend data connected to your account.
-          </p>
-          <p class="auth-error hidden" id="authErrorMessage"></p>
-
-          <div class="toolbar auth-toolbar">
-            <button class="primary-button" id="authSubmitButton" type="submit">Sign In</button>
-            <button class="ghost-button" id="authCancelButton" type="button">Cancel</button>
-          </div>
-        </form>
-      </section>
-    </div>
-
     <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
-    <script src="./app.js?v=emotion-spectrum-fix-20260428"></script>
+    <script src="./app.js"></script>
   </body>
 </html>
+
+

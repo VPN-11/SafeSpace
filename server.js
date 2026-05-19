@@ -54,7 +54,9 @@ const analysisRateLimiter = createRateLimiter({
 });
 
 // ----- Connect Database -----
-connectDB();
+connectDB().catch((error) => {
+  console.error("Initial MongoDB connection failed:", error);
+});
 
 // ----- Middlewares -----
 app.set("trust proxy", process.env.TRUST_PROXY === "true" ? 1 : false);
@@ -164,7 +166,10 @@ function getBearerToken(request) {
 // Custom middleware to require user authentication
 async function requireAuth(req, res, next) {
   try {
-    if (!isDBReady()) {
+    try {
+      await connectDB();
+    } catch (error) {
+      console.error(`[${req.id}] MongoDB unavailable for ${req.method} ${req.originalUrl}:`, error);
       return sendApiError(
         req,
         res,
@@ -192,8 +197,12 @@ async function requireAuth(req, res, next) {
   }
 }
 
-function requireDB(req, res, next) {
-  if (!isDBReady()) {
+async function requireDB(req, res, next) {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error(`[${req.id}] MongoDB unavailable for ${req.method} ${req.originalUrl}:`, error);
     return sendApiError(
       req,
       res,
@@ -202,7 +211,6 @@ function requireDB(req, res, next) {
       "This endpoint requires MongoDB. Check MONGODB_URI, Atlas network access, and credentials."
     );
   }
-  next();
 }
 
 // FIX 5: Add an admin/internal-only guard for sensitive endpoints like /api/metrics.
@@ -254,7 +262,13 @@ app.get("/api/live", (req, res) => {
   });
 });
 
-app.get("/api/ready", (req, res) => {
+app.get("/api/ready", async (req, res) => {
+  try {
+    await connectDB();
+  } catch (error) {
+    console.error(`[${req.id}] Readiness MongoDB check failed:`, error);
+  }
+
   const ready = isDBReady();
   res.status(ready ? 200 : 503).json({
     ok: ready,
@@ -352,6 +366,7 @@ app.post("/api/auth/register", authRateLimiter, requireDB, asyncHandler(async (r
       token: result.session.token,
     });
   } catch (error) {
+    console.error(`[${req.id}] Registration failed:`, error);
     throw createHttpError(400, "Registration failed", error.message);
   }
 }));
@@ -364,6 +379,7 @@ app.post("/api/auth/login", authRateLimiter, requireDB, asyncHandler(async (req,
       token: result.session.token,
     });
   } catch (error) {
+    console.error(`[${req.id}] Login failed:`, error);
     throw createHttpError(401, "Login failed", error.message);
   }
 }));
@@ -380,20 +396,26 @@ app.post("/api/auth/logout", requireDB, async (req, res, next) => {
     }
     res.status(200).json({ ok: true });
   } catch (error) {
+    console.error(`[${req.id}] Logout failed:`, error);
     next(error);
   }
 });
 
 // Check-ins Endpoints
 app.get("/api/checkins", requireAuth, asyncHandler(async (req, res) => {
-  const result = await listCheckins(req.user.id, {
-    page: req.query.page,
-    limit: req.query.limit,
-    emotion: req.query.emotion,
-    risk: req.query.risk,
-    month: req.query.month,
-  });
-  res.status(200).json(result);
+  try {
+    const result = await listCheckins(req.user.id, {
+      page: req.query.page,
+      limit: req.query.limit,
+      emotion: req.query.emotion,
+      risk: req.query.risk,
+      month: req.query.month,
+    });
+    res.status(200).json(result);
+  } catch (error) {
+    console.error(`[${req.id}] Check-in list failed:`, error);
+    throw createHttpError(400, "Check-in history could not be loaded", error.message);
+  }
 }));
 
 // FIX 6 also applied here: validate text length on save, not just on analysis.
@@ -415,6 +437,7 @@ app.post("/api/checkins", requireAuth, asyncHandler(async (req, res) => {
     const checkins = await listRecentCheckins(req.user.id, 5);
     res.status(201).json({ checkin, checkins });
   } catch (error) {
+    console.error(`[${req.id}] Check-in save failed:`, error);
     throw createHttpError(400, "Check-in could not be saved", error.message);
   }
 }));

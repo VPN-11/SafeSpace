@@ -60,4 +60,4 @@ checkinSchema.index({ userId: 1, emotion: 1, createdAt: -1 });
 checkinSchema.index({ userId: 1, risk: 1, createdAt: -1 });
 checkinSchema.index({ userId: 1, risk: 1, emotion: 1, createdAt: -1 });
 
-module.exports = mongoose.model("Checkin", checkinSchema);
+module.exports = mongoose.models.Checkin || mongoose.model("Checkin", checkinSchema);

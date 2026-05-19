@@ -1,9 +1,16 @@
 const crypto = require("crypto");
 const { promisify } = require("util");
-const User = require("./models/User");
-const Session = require("./models/Session");
+const { connectDB } = require("./config/db");
 
 const scrypt = promisify(crypto.scrypt);
+
+async function getAuthModels() {
+  await connectDB();
+  return {
+    User: require("./models/User"),
+    Session: require("./models/Session"),
+  };
+}
 
 function sanitizeUser(user) {
   if (!user) {
@@ -75,6 +82,7 @@ function buildSessionLookup(token) {
 }
 
 async function registerUser({ name, email, password }) {
+  const { User } = await getAuthModels();
   const normalizedEmail = normalizeEmail(email);
   const trimmedName = String(name || "").trim();
   const safePassword = String(password || "");
@@ -114,6 +122,7 @@ async function registerUser({ name, email, password }) {
 }
 
 async function loginUser({ email, password }) {
+  const { User } = await getAuthModels();
   const normalizedEmail = normalizeEmail(email);
   const safePassword = String(password || "");
 
@@ -135,6 +144,7 @@ async function loginUser({ email, password }) {
 }
 
 async function createSessionForUser(userId) {
+  const { Session } = await getAuthModels();
   const token = createSessionToken();
   const document = await Session.create({
     token,
@@ -150,6 +160,7 @@ async function getUserForToken(token) {
     return null;
   }
 
+  const { Session } = await getAuthModels();
   const session = await Session.findOne(buildSessionLookup(token)).populate("userId");
   if (!session || !session.userId) {
     return null;
@@ -163,6 +174,7 @@ async function invalidateSession(token) {
     return;
   }
 
+  const { Session } = await getAuthModels();
   await Session.deleteOne(buildSessionLookup(token));
 }
 

@@ -8,6 +8,9 @@ const dbStatus = {
   connectedAt: null,
 };
 
+let cachedConnection = null;
+let connectionPromise = null;
+
 function setDisconnectedStatus(error = null) {
   dbStatus.state = "disconnected";
   dbStatus.host = null;
@@ -16,20 +19,50 @@ function setDisconnectedStatus(error = null) {
   dbStatus.lastError = error ? error.message : null;
 }
 
+function getMongooseConnection() {
+  return mongoose.connections[0] || mongoose.connection;
+}
+
+function setConnectedStatus(connection) {
+  dbStatus.state = "connected";
+  dbStatus.host = connection.host;
+  dbStatus.name = connection.name;
+  dbStatus.connectedAt = dbStatus.connectedAt || new Date().toISOString();
+  dbStatus.lastError = null;
+}
+
 async function connectDB() {
   const mongoUri = process.env.MONGODB_URI;
-  const timeoutMs = Number(process.env.MONGODB_CONNECT_TIMEOUT_MS) || 5000;
+  const timeoutMs = Number(process.env.MONGODB_CONNECT_TIMEOUT_MS) || 15000;
   const maxPoolSize = Number(process.env.MONGODB_MAX_POOL_SIZE) || 20;
   const minPoolSize = Number(process.env.MONGODB_MIN_POOL_SIZE) || 0;
+  const connection = getMongooseConnection();
 
   if (!mongoUri) {
     const error = new Error("MONGODB_URI is not configured.");
     setDisconnectedStatus(error);
     console.error(`MongoDB configuration error: ${error.message}`);
-    return null;
+    throw error;
   }
 
-  try {
+  if (connection.readyState === 1) {
+    cachedConnection = mongoose;
+    setConnectedStatus(connection);
+    return cachedConnection;
+  }
+
+  if (connection.readyState === 2 && connectionPromise) {
+    return connectionPromise;
+  }
+
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+
+  dbStatus.state = "connecting";
+  dbStatus.lastError = null;
+
+  connectionPromise = (async () => {
     dbStatus.state = "connecting";
     dbStatus.lastError = null;
 
@@ -51,47 +84,50 @@ async function connectDB() {
       }),
     ]);
 
-    dbStatus.state = "connected";
-    dbStatus.host = conn.connection.host;
-    dbStatus.name = conn.connection.name;
-    dbStatus.connectedAt = new Date().toISOString();
-    dbStatus.lastError = null;
+    cachedConnection = conn;
+    setConnectedStatus(conn.connection);
 
     console.log(`MongoDB connected: ${conn.connection.host}/${conn.connection.name}`);
     return conn;
+  })();
+
+  try {
+    return await connectionPromise;
   } catch (error) {
     setDisconnectedStatus(error);
-    if (mongoose.connection.readyState !== 1) {
+    connectionPromise = null;
+    cachedConnection = null;
+    if (getMongooseConnection().readyState !== 1) {
       await mongoose.disconnect().catch(() => {});
     }
     console.error(`MongoDB connection error: ${error.message}`);
-    return null;
+    throw error;
   }
 }
 
 function getDBStatus() {
+  const connection = getMongooseConnection();
   return {
     ...dbStatus,
-    mongooseReadyState: mongoose.connection.readyState,
+    mongooseReadyState: connection.readyState,
   };
 }
 
 function isDBReady() {
-  return mongoose.connection.readyState === 1;
+  return getMongooseConnection().readyState === 1;
 }
 
 mongoose.connection.on("disconnected", () => {
+  cachedConnection = null;
+  connectionPromise = null;
   if (dbStatus.state !== "disconnected") {
     setDisconnectedStatus(new Error("MongoDB connection disconnected."));
   }
 });
 
 mongoose.connection.on("connected", () => {
-  dbStatus.state = "connected";
-  dbStatus.host = mongoose.connection.host;
-  dbStatus.name = mongoose.connection.name;
-  dbStatus.connectedAt = new Date().toISOString();
-  dbStatus.lastError = null;
+  cachedConnection = mongoose;
+  setConnectedStatus(mongoose.connection);
 });
 
 mongoose.connection.on("error", (error) => {
