@@ -22,6 +22,7 @@ const stressIndex = document.getElementById("stressIndex");
 const supportMode = document.getElementById("supportMode");
 const recommendationGrid = document.getElementById("recommendationGrid");
 const supportResponse = document.getElementById("supportResponse");
+const groqEnhancementResponse = document.getElementById("groqEnhancementResponse");
 const moodBars = document.getElementById("moodBars");
 const moodTrendMeta = document.getElementById("moodTrendMeta");
 const userDashboardCard = document.getElementById("userDashboardCard");
@@ -87,6 +88,8 @@ let isExpressionCaptureRunning = false;
 const expressionApiUrl = "/api/expression/analyze";
 const expressionHealthUrl = "/api/expression/health";
 const textAnalysisApiUrl = "/api/text/analyze";
+const groqEnhanceApiUrl = "/api/groq/enhance";
+const groqHealthUrl = "/api/groq/health";
 const authRegisterApiUrl = "/api/auth/register";
 const authLoginApiUrl = "/api/auth/login";
 const authMeApiUrl = "/api/auth/me";
@@ -1559,6 +1562,70 @@ async function analyzeTextOnServer(text) {
   });
 }
 
+/**
+ * Request Groq enhancement (non-blocking, fire-and-forget)
+ *
+ * This function calls the Groq enhancement endpoint in the background
+ * without blocking the main analysis flow. If Groq fails, is disabled,
+ * or times out, the UI behavior remains completely unchanged.
+ *
+ * @param {string} userText - The user's check-in text
+ * @param {object} analysisResult - Result from analyzeTextOnServer()
+ * @param {object} expressionResult - Optional facial expression result
+ */
+function requestGroqEnhancement(userText = "", analysisResult = {}, expressionResult = null) {
+  // Fire-and-forget background request (non-blocking)
+  apiRequest(groqEnhanceApiUrl, {
+    method: "POST",
+    body: JSON.stringify({
+      text: userText,
+      textAnalysisResult: analysisResult,
+      expressionResult: expressionResult,
+    }),
+  })
+    .then((response) => {
+      // Log enhancement for debugging purposes only
+      if (response?.enhancement) {
+        if (response.enhancement.insight) {
+          console.debug("[Groq] Emotional insight generated", response.enhancement.insight);
+        }
+        displayGroqEnhancement(response.enhancement);
+      }
+      return response;
+    })
+    .catch((error) => {
+      // Silently log error (non-critical enhancement failure)
+      console.debug("[Groq] Enhancement request failed (non-blocking):", error?.message || error);
+      displayGroqEnhancement(null);
+    });
+}
+
+function displayGroqEnhancement(enhancement = {}) {
+  if (!groqEnhancementResponse) {
+    return;
+  }
+
+  const messages = [];
+  if (enhancement?.insight) {
+    messages.push(`Groq insight: ${enhancement.insight}`);
+  }
+  if (enhancement?.recommendations?.recommendations) {
+    messages.push(`Groq recommendations: ${enhancement.recommendations.recommendations}`);
+  }
+  if (enhancement?.fusion?.synthesis) {
+    messages.push(`Groq fusion: ${enhancement.fusion.synthesis}`);
+  }
+
+  if (messages.length === 0) {
+    groqEnhancementResponse.classList.add("hidden");
+    groqEnhancementResponse.textContent = "";
+    return;
+  }
+
+  groqEnhancementResponse.textContent = messages.join(" ");
+  groqEnhancementResponse.classList.remove("hidden");
+}
+
 function renderRecommendations(cards) {
   recommendationGrid.innerHTML = cards
     .map(
@@ -1605,6 +1672,10 @@ async function applyAnalysis(expressionLabel = "Not captured yet", shouldTrack =
     renderCrisisSafety(null);
     return;
   }
+
+  // Optional: Request Groq enhancement (non-blocking enhancement layer)
+  // This runs in the background and does not block the existing analysis flow
+  requestGroqEnhancement(emotionInput.value, result, latestExpressionScores);
 
   const emotionSpectrum = buildEmotionSpectrum(normalizedText, result, latestExpressionScores);
 

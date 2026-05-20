@@ -21,6 +21,12 @@ const { analyzeExpression, MODEL_INFO } = require("./backend/expression-service"
 const { analyzeText, MODEL_INFO: TEXT_MODEL_INFO } = require("./backend/text-analysis-service");
 const { getUserForToken, invalidateSession, loginUser, registerUser } = require("./backend/auth-service");
 const { listCheckins, listRecentCheckins, saveCheckin } = require("./backend/checkin-service");
+const {
+  generateEmotionalInsight,
+  generateContextualRecommendations,
+  fuseFacialAndTextAnalysis,
+  getGroqHealthStatus,
+} = require("./backend/groq-service");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -356,6 +362,96 @@ app.post("/api/text/analyze", analysisRateLimiter, (req, res, next) => {
     next(createHttpError(400, "Text analysis failed", error.message));
   }
 });
+
+// Groq Health Check Endpoint
+// Public endpoint to check if Groq AI enhancement service is available
+app.get("/api/groq/health", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: "groq-emotional-intelligence",
+    status: getGroqHealthStatus(),
+    database: getDBStatus(),
+    serverSessionId: SERVER_SESSION_ID,
+    bootedAt: SERVER_BOOTED_AT,
+    requestId: req.id,
+    date: new Date().toISOString(),
+  });
+});
+
+// Groq Enhanced Analysis Endpoint
+// Optional enhancement endpoint that augments text analysis results with Groq AI insights
+// This endpoint is completely optional and non-blocking. If Groq fails, response still succeeds.
+app.post("/api/groq/enhance", analysisRateLimiter, asyncHandler(async (req, res) => {
+  try {
+    const { text, textAnalysisResult, expressionResult } = req.body;
+
+    // Validate inputs
+    if (!text || typeof text !== "string" || text.trim().length === 0) {
+      return sendApiError(
+        req,
+        res,
+        400,
+        "Invalid request",
+        "Text field is required and must be non-empty."
+      );
+    }
+
+    // Generate emotional insight enhancement using Groq
+    const insight = await generateEmotionalInsight(text, textAnalysisResult || {}, {
+      timeout: 5000,
+    });
+
+    // Generate contextual recommendations if emotion is available
+    let recommendations = null;
+    if (textAnalysisResult?.emotion) {
+      recommendations = await generateContextualRecommendations(
+        textAnalysisResult.emotion,
+        textAnalysisResult.risk || "Low",
+        { timeout: 5000 }
+      );
+    }
+
+    // Fuse facial and text analysis if both results are provided
+    let fusion = null;
+    if (expressionResult && textAnalysisResult) {
+      fusion = await fuseFacialAndTextAnalysis(
+        expressionResult,
+        textAnalysisResult,
+        { timeout: 5000 }
+      );
+    }
+
+    // Return enhancement object
+    // All fields are optional and will be null if Groq service is disabled or fails
+    res.status(200).json({
+      ok: true,
+      enhancement: {
+        insight,
+        recommendations,
+        fusion,
+      },
+      requestId: req.id,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(`[${req.id}] Groq enhancement request failed:`, error);
+    // Even on error, return 200 with null enhancements so frontend isn't disrupted
+    res.status(200).json({
+      ok: true,
+      enhancement: {
+        insight: null,
+        recommendations: null,
+        fusion: null,
+      },
+      requestId: req.id,
+      timestamp: new Date().toISOString(),
+      error: {
+        message: "Groq enhancement unavailable (non-critical)",
+        details: error?.message || "Unknown error",
+      },
+    });
+  }
+}));
 
 // Auth Endpoints
 app.post("/api/auth/register", authRateLimiter, requireDB, asyncHandler(async (req, res) => {
